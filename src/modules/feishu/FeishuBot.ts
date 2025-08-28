@@ -340,11 +340,12 @@ export class FeishuBot {
     try {
       const token = await this.getAccessToken();
       
-      const resp = await this.httpClient.post('/im/v1/messages', {
-        receive_id: chatId,
-        receive_id_type: 'chat_id',
+      const resp = await this.httpClient.post('/message/v4/send/', {
+        chat_id: chatId,
         msg_type: 'text',
-        content: JSON.stringify({ text: content })
+        content: {
+          text: content
+        }
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -375,11 +376,10 @@ export class FeishuBot {
       
       logger.info('准备发送卡片消息', { chatId, cardType: cardData.header?.title?.content });
       
-      const response = await this.httpClient.post('/im/v1/messages', {
-        receive_id: chatId,
-        receive_id_type: 'chat_id',
+      const response = await this.httpClient.post('/message/v4/send/', {
+        chat_id: chatId,
         msg_type: 'interactive',
-        content: JSON.stringify(cardData)
+        content: cardData
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
