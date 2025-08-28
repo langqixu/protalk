@@ -10,12 +10,12 @@
   "sync": {
     "reviews": {
       "interval": "*/10 * * * *",
-      "batchSize": 20,
+      "batchSize": 50,
       "maxRetries": 3,
       "retryDelay": 1000,
       "enableIncremental": true,
-      "pushNewReviews": false,
-      "pushUpdatedReviews": false,
+      "pushNewReviews": true,
+      "pushUpdatedReviews": true,
       "pushHistoricalReviews": false,
       "markHistoricalAsPushed": true
     },
