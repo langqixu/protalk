@@ -9,7 +9,7 @@ interface SupabaseConfig {
 
 // 统一的数据库记录接口（基于最新表结构）
 interface DatabaseAppReview {
-  id: string;
+  id?: string | null; // id字段可选，主键已改为review_id
   review_id: string;
   app_id: string;
   rating: number;
@@ -365,7 +365,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformAppReviewToDatabase(review: AppReview): DatabaseAppReview {
     return {
-      id: (review as any).id || null, // id字段可能不存在，设为null
+      // 不再依赖id字段，主键已改为review_id
       review_id: review.reviewId,
       app_id: review.appId,
       rating: review.rating,
@@ -393,7 +393,8 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformDatabaseToAppReview(dbRecord: any): AppReview {
     return {
-      id: dbRecord.id || null as any, // id字段在AppReview中可能不存在，暂时用any
+      // 为了兼容性，使用reviewId作为id字段的值
+      id: dbRecord.review_id, // 使用review_id作为id的值
       reviewId: dbRecord.review_id,
       appId: dbRecord.app_id,
       rating: dbRecord.rating,
