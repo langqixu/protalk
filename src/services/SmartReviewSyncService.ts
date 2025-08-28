@@ -158,7 +158,7 @@ export class SmartReviewSyncService {
   } {
     const toPush: { review: AppReview; pushType: 'new' | 'historical' | 'updated' }[] = [];
     const toSkip: { review: AppReview; reason: string }[] = [];
-    const summary = { new: 0, historical: 0, updated: 0, skipped: 0 };
+    const summary: Record<'new' | 'historical' | 'updated' | 'skipped', number> = { new: 0, historical: 0, updated: 0, skipped: 0 };
 
     for (const review of newReviews) {
       const existingReview = existingReviews.get(review.reviewId);
