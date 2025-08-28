@@ -69,7 +69,7 @@ export class SmartReviewSyncService {
       });
 
       // 4. 执行智能变更检测和推送决策
-      const pushDecisions = this.performSmartPushAnalysis(appReviews, existingReviews);
+      const pushDecisions = await this.performSmartPushAnalysis(appReviews, existingReviews);
       
       // 5. 标记推送状态并更新数据库
       const updatedReviews = this.markReviewsForPush(appReviews, pushDecisions.toPush);
@@ -143,10 +143,10 @@ export class SmartReviewSyncService {
   /**
    * 执行智能推送分析
    */
-  private performSmartPushAnalysis(
+  private async performSmartPushAnalysis(
     newReviews: AppReview[],
     existingReviews: Map<string, AppReview>
-  ): {
+  ): Promise<{
     toPush: { review: AppReview; pushType: 'new' | 'historical' | 'updated' }[];
     toSkip: { review: AppReview; reason: string }[];
     summary: {
@@ -155,7 +155,7 @@ export class SmartReviewSyncService {
       updated: number;
       skipped: number;
     };
-  } {
+  }> {
     const toPush: { review: AppReview; pushType: 'new' | 'historical' | 'updated' }[] = [];
     const toSkip: { review: AppReview; reason: string }[] = [];
     const summary: Record<'new' | 'historical' | 'updated' | 'skipped', number> = { new: 0, historical: 0, updated: 0, skipped: 0 };
@@ -276,7 +276,7 @@ export class SmartReviewSyncService {
         
         // 🔑 关键修复：推送成功后更新isPushed状态
         review.isPushed = true;
-        review.pushType = pushType;
+        review.pushType = pushType as 'new' | 'historical' | 'updated';
         await this.db.upsertAppReviews([review]);
         
         logger.info('📤 推送成功', {
