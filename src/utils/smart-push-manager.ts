@@ -112,7 +112,7 @@ export class SmartPushManager {
         
         logger.debug('决定推送反馈', {
           reviewId: feedback.reviewId,
-          dataType: feedback.dataType,
+          // dataType 字段已移除，不再区分 review 和 rating_only
           pushType: decision.pushType,
           reason: decision.reason
         });
@@ -122,7 +122,7 @@ export class SmartPushManager {
         
         logger.debug('跳过推送反馈', {
           reviewId: feedback.reviewId,
-          dataType: feedback.dataType,
+          // dataType 字段已移除，不再区分 review 和 rating_only
           reason: decision.reason
         });
       }

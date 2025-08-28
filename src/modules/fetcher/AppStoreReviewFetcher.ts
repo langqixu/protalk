@@ -163,7 +163,7 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
           reviewerNickname: item.attributes.reviewerNickname,
           createdDate: new Date(item.attributes.createdDate),
           isEdited: item.attributes.isEdited,
-          dataType: (item.attributes.body && item.attributes.body.trim()) ? 'review' : 'rating_only',
+          // dataType 字段已移除，不再区分 review 和 rating_only
           firstSyncAt: new Date(),
           isPushed: false,
           createdAt: new Date(),

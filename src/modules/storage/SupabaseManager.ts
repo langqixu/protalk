@@ -20,7 +20,7 @@ interface DatabaseAppReview {
   is_edited: boolean;
   response_body?: string | null;
   response_date?: string | null;
-  data_type: 'review' | 'rating_only';
+  // data_type 字段已从数据库移除
   first_sync_at: string;
   is_pushed: boolean;
   push_type?: 'new' | 'historical' | 'updated' | null;
@@ -293,71 +293,14 @@ export class SupabaseManager implements IDatabaseManager {
   }
 
   /**
-   * 按数据类型获取评论
+   * 按数据类型获取评论 - 已移除，不再区分 review 和 rating_only
    */
-  async getReviewsByDataType(appId: string, dataType: 'review' | 'rating_only'): Promise<AppReview[]> {
-    try {
-      const { data, error } = await this.client
-        .from('app_reviews')
-        .select('*')
-        .eq('app_id', appId)
-        .eq('data_type', dataType)
-        .order('created_date', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      const reviews = data ? data.map(dbRecord => this.transformDatabaseToAppReview(dbRecord)) : [];
-      
-      logger.debug('按类型获取评论成功', { appId, dataType, count: reviews.length });
-      return reviews;
-    } catch (error) {
-      logger.error('按类型获取评论失败', { 
-        appId, 
-        dataType,
-        error: error instanceof Error ? error.message : error 
-      });
-      throw error;
-    }
-  }
+  // getReviewsByDataType 方法已移除
 
   /**
-   * 获取评论数量统计（按类型）
+   * 获取评论数量统计（按类型） - 已移除，不再区分 review 和 rating_only
    */
-  async getReviewCountByType(appId: string): Promise<{review: number, rating_only: number}> {
-    try {
-      const { data, error } = await this.client
-        .from('app_reviews')
-        .select('data_type')
-        .eq('app_id', appId);
-
-      if (error) {
-        throw error;
-      }
-
-      const counts = { review: 0, rating_only: 0 };
-      
-      if (data) {
-        for (const record of data) {
-          if (record.data_type === 'review') {
-            counts.review++;
-          } else if (record.data_type === 'rating_only') {
-            counts.rating_only++;
-          }
-        }
-      }
-
-      logger.debug('评论类型统计完成', { appId, counts });
-      return counts;
-    } catch (error) {
-      logger.error('评论类型统计失败', { 
-        appId,
-        error: error instanceof Error ? error.message : error 
-      });
-      throw error;
-    }
-  }
+  // getReviewCountByType 方法已移除
 
   /**
    * 将AppReview对象转换为数据库格式
@@ -376,7 +319,7 @@ export class SupabaseManager implements IDatabaseManager {
       is_edited: review.isEdited,
       response_body: review.responseBody || null,
       response_date: review.responseDate?.toISOString() || null,
-      data_type: review.dataType,
+      // data_type 字段已从数据库移除
       first_sync_at: review.firstSyncAt.toISOString(),
       is_pushed: review.isPushed,
       push_type: review.pushType || null,
@@ -404,7 +347,7 @@ export class SupabaseManager implements IDatabaseManager {
       isEdited: dbRecord.is_edited,
       responseBody: dbRecord.response_body || null,
       responseDate: dbRecord.response_date ? new Date(dbRecord.response_date) : null,
-      dataType: dbRecord.data_type,
+      // dataType 字段已从数据库移除
       firstSyncAt: new Date(dbRecord.first_sync_at),
       isPushed: dbRecord.is_pushed,
       pushType: dbRecord.push_type || null,

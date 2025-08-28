@@ -17,7 +17,7 @@ export interface AppReview {
   responseDate?: Date | null;   // 开发者回复时间
   
   // 二级定义字段（业务逻辑分类）
-  dataType: 'review' | 'rating_only'; // 基于body内容自动判断
+  // dataType 字段已移除，不再区分 review 和 rating_only
   
   // 同步控制字段
   firstSyncAt: Date;           // 首次同步时间
@@ -168,9 +168,8 @@ export interface IDatabaseManager {
   updateReply(reviewId: string, responseBody: string, responseDate: Date): Promise<void>;
   hasReply(reviewId: string): Promise<boolean>;
   
-  // 数据类型查询方法
-  getReviewsByDataType(appId: string, dataType: 'review' | 'rating_only'): Promise<AppReview[]>;
-  getReviewCountByType(appId: string): Promise<{review: number, rating_only: number}>;
+  // 数据类型查询方法 - 已移除，不再区分 review 和 rating_only
+  // getReviewsByDataType 和 getReviewCountByType 方法已移除
   
   // 统一方法（移除向下兼容）
   

@@ -253,7 +253,7 @@ export class SmartReviewSyncService {
         
         logger.info('📤 推送成功', {
           reviewId: review.reviewId,
-          dataType: review.dataType,
+          // dataType 字段已移除，不再区分 review 和 rating_only
           pushType,
           mappedType: mappedPushType
         });
