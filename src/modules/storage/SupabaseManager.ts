@@ -9,7 +9,6 @@ interface SupabaseConfig {
 
 // 统一的数据库记录接口（基于最新表结构）
 interface DatabaseAppReview {
-  id: string;
   review_id: string;
   app_id: string;
   rating: number;
@@ -362,7 +361,6 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformAppReviewToDatabase(review: AppReview): DatabaseAppReview {
     return {
-      id: review.id,
       review_id: review.reviewId,
       app_id: review.appId,
       rating: review.rating,
@@ -390,7 +388,6 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformDatabaseToAppReview(dbRecord: any): AppReview {
     return {
-      id: dbRecord.id,
       reviewId: dbRecord.review_id,
       appId: dbRecord.app_id,
       rating: dbRecord.rating,

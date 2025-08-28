@@ -87,7 +87,7 @@ export class RichTextFactory {
     } catch (error) {
       logger.error('创建评论卡片失败', { 
         error: error instanceof Error ? error.message : error,
-        reviewId: review.id 
+        reviewId: review.reviewId 
       });
       
       // 降级到简单文本卡片

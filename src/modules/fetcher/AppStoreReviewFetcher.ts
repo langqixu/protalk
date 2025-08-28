@@ -155,7 +155,6 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
     for (const item of response.data) {
       if (item.type === 'customerReviews') {
         const review: AppReview = {
-          id: '', // 数据库主键，在保存时生成
           reviewId: item.id,
           appId: '', // 将在外部设置
           rating: item.attributes.rating,

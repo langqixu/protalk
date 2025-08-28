@@ -1,8 +1,7 @@
 // 基于App Store Connect API真实结构的评论数据类型
 export interface AppReview {
   // 主键和标识
-  id: string;                  // 数据库主键
-  reviewId: string;            // App Store Connect API的唯一ID
+  reviewId: string;            // App Store Connect API的唯一ID (主键)
   appId: string;
   
   // App Store Connect API原始字段（保持命名一致）

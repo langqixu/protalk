@@ -70,7 +70,7 @@ export class DataProcessor {
 
     // 验证日期格式
     if (!(review.createdDate instanceof Date) || isNaN(review.createdDate.getTime())) {
-      logger.warn('评论创建日期格式无效', { reviewId: review.id });
+      logger.warn('评论创建日期格式无效', { reviewId: review.reviewId });
       return false;
     }
 
