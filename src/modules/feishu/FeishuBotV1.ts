@@ -71,7 +71,6 @@ interface MessageResponse {
 export class FeishuBotV1 {
   private httpClient: AxiosInstance;
   private tenantAccessToken: string | null = null;
-  private appAccessToken: string | null = null;
   private tokenExpiresAt: number = 0;
 
   constructor(private config: FeishuBotV1Config) {
@@ -129,47 +128,8 @@ export class FeishuBotV1 {
     logger.info('飞书机器人V1初始化成功 - 基于最新v1 API');
   }
 
-  /**
-   * 获取应用访问令牌 (App Access Token)
-   * 暂时保留，可能用于某些特殊API调用
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async getAppAccessToken(): Promise<string> {
-    if (this.appAccessToken && Date.now() < this.tokenExpiresAt) {
-      return this.appAccessToken;
-    }
-
-    try {
-      logger.debug('获取飞书应用访问令牌');
-      
-      const response = await axios.post<TokenResponse>(
-        'https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal/',
-        {
-          app_id: this.config.appId,
-          app_secret: this.config.appSecret,
-        },
-        {
-          headers: { 'Content-Type': 'application/json; charset=utf-8' },
-          timeout: 10000
-        }
-      );
-
-      if (response.data.code !== 0) {
-        throw new Error(`获取应用令牌失败: ${response.data.msg}`);
-      }
-
-      this.appAccessToken = response.data.app_access_token!;
-      this.tokenExpiresAt = Date.now() + (response.data.expire! * 1000) - 60000; // 提前1分钟过期
-
-      logger.info('飞书应用访问令牌获取成功');
-      return this.appAccessToken;
-    } catch (error) {
-      logger.error('获取飞书应用访问令牌失败', { 
-        error: error instanceof Error ? error.message : error 
-      });
-      throw error;
-    }
-  }
+  // 注意：getAppAccessToken 方法已移除，因为当前实现只使用 tenant_access_token
+  // 如果将来需要 app_access_token，可以参考 getTenantAccessToken 的实现
 
   /**
    * 获取租户访问令牌 (Tenant Access Token)
