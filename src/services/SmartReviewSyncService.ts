@@ -168,7 +168,10 @@ export class SmartReviewSyncService {
       
       if (decision.shouldPush) {
         toPush.push({ review, pushType: decision.pushType });
-        summary[decision.pushType]++;
+        // 类型安全的计数器更新
+        if (decision.pushType in summary) {
+          summary[decision.pushType as keyof typeof summary]++;
+        }
         
         logger.debug('✅ 决定推送', {
           reviewId: review.reviewId,
