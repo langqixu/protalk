@@ -118,8 +118,8 @@ export class FeishuService implements IFeishuService {
       // 构建卡片消息
       const cardMessage = this.buildReviewMessage(review, type);
       
-      // 自动获取群组ID
-      const chatId = await this.feishuBot.getFirstChatId() || 'default_chat';
+      // 自动获取群组ID，如果失败则使用固定的已知群组ID
+      const chatId = await this.feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
       
       // 发送卡片消息到飞书
       if (cardMessage.card) {

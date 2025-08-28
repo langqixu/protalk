@@ -384,7 +384,7 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
         });
       }
 
-      const chatId = await (feishuService as any).feishuBot.getFirstChatId();
+      const chatId = await (feishuService as any).feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
       if (!chatId) {
         return res.status(400).json({ 
           success: false, 
@@ -425,10 +425,10 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
         });
       }
 
-      // 优先使用指定的chat_id，否则尝试自动获取
+      // 优先使用指定的chat_id，否则尝试自动获取，最后使用固定的已知群组ID
       let chatId = chat_id;
       if (!chatId) {
-        chatId = await (feishuService as any).feishuBot.getFirstChatId();
+        chatId = await (feishuService as any).feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
         if (!chatId) {
           return res.status(400).json({ 
             success: false, 
