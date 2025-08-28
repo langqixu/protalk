@@ -354,6 +354,7 @@ export class FeishuBot {
       logger.info('消息发送成功', { chatId, responseData: (resp as any)?.data });
     } catch (error) {
       logger.error('发送消息失败', { chatId, error: error instanceof Error ? error.message : error, errorResponse: (error as any)?.response?.data });
+      throw error; // 重新抛出错误，让调用方知道发送失败
     }
   }
 

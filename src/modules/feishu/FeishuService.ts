@@ -139,8 +139,8 @@ export class FeishuService implements IFeishuService {
         });
       }
 
-      // 通过当前模式记录
-      await this.currentMode.pushMessage(cardMessage);
+      // 只在实际发送成功后更新计数器
+      this.currentMode.getStatus().messageCount++;
 
     } catch (error) {
       logger.error('评论推送失败', {
