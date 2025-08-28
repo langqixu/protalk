@@ -62,7 +62,12 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
       }
 
       // 调试日志：完整事件体
-      try { logger.info('事件原始请求体', { body: req.body }); } catch {}
+      logger.info('事件原始请求体', { 
+        body: req.body,
+        headers: req.headers,
+        method: req.method,
+        url: req.url
+      });
 
       // 立即返回响应，避免任何延迟
       res.json({ ok: true });
