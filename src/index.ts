@@ -3,13 +3,12 @@ import cron from 'node-cron';
 import { loadConfig } from './config';
 import { AppStoreReviewFetcher } from './modules/fetcher/AppStoreReviewFetcher';
 import { SupabaseManager } from './modules/storage/SupabaseManager';
-import { FeishuService } from './modules/feishu/FeishuService';
 import { FeishuServiceV1 } from './services/FeishuServiceV1';
 import { ReviewSyncService } from './services/ReviewSyncService';
-import { createFeishuRoutesV2 } from './api/feishu-routes-v2';
-import feishuRoutesV1, { initializeFeishuServiceV1 } from './api/feishu-routes-v1';
+import { SmartReviewSyncService } from './services/SmartReviewSyncService';
+import feishuRoutes, { initializeFeishuServiceV1 } from './api/feishu-routes';
 import logger from './utils/logger';
-import { IPusher } from './types';
+// IPusher类型已通过FeishuServiceV1直接使用
 
 async function main() {
   try {
@@ -17,9 +16,7 @@ async function main() {
     logger.info('正在加载配置...');
     const { app: appConfig, env: envConfig } = loadConfig();
     
-    // 检查API版本配置
-    const apiVersion = envConfig.feishu.apiVersion || 'v1';
-    logger.info(`🚀 启动 Protalk 应用 - 飞书API版本: ${apiVersion}`);
+    logger.info('🚀 启动 Protalk 应用 - 飞书API版本: v1');
     
     // 2. 初始化核心模块
     logger.info('正在初始化核心模块...');
@@ -33,53 +30,25 @@ async function main() {
       supabase: envConfig.supabase
     });
     
-    // 根据配置初始化对应版本的飞书服务
-    let feishuService: IPusher | null = null;
-    let isV1Api = false;
+    // 初始化飞书v1服务
+    let feishuService: FeishuServiceV1 | null = null;
     
     if (envConfig.feishu.appId && envConfig.feishu.appSecret) {
-      if (apiVersion === 'v1') {
-        // 使用v1 API服务
-        const feishuServiceV1 = new FeishuServiceV1({
-          appId: envConfig.feishu.appId,
-          appSecret: envConfig.feishu.appSecret,
-          verificationToken: envConfig.feishu.verificationToken || '',
-          encryptKey: envConfig.feishu.encryptKey || undefined,
-          mode: envConfig.feishu.mode || 'eventsource',
-          supabaseUrl: envConfig.supabase.url,
-          supabaseKey: envConfig.supabase.anonKey,
-          enableSignatureVerification: envConfig.feishu.enableSignatureVerification || false
-        });
-        
-        feishuService = feishuServiceV1;
-        isV1Api = true;
-        
-        logger.info('✅ 飞书v1 API服务初始化完成', {
-          mode: envConfig.feishu.mode || 'eventsource',
-          signatureVerification: envConfig.feishu.enableSignatureVerification || false
-        });
-      } else {
-        // 使用v4 API服务（向后兼容）
-        const feishuServiceV4 = new FeishuService({
-          appId: envConfig.feishu.appId,
-          appSecret: envConfig.feishu.appSecret,
-          mode: envConfig.feishu.mode || 'webhook',
-          ...(envConfig.feishu.verificationToken && { verificationToken: envConfig.feishu.verificationToken }),
-          ...(envConfig.feishu.encryptKey && { encryptKey: envConfig.feishu.encryptKey }),
-          batchSize: envConfig.feishu.batchSize || 10,
-          retryAttempts: envConfig.feishu.retryAttempts || 3,
-          processInterval: envConfig.feishu.processInterval || 2000
-        });
-        
-        // 初始化v4服务
-        await feishuServiceV4.initialize();
-        feishuService = feishuServiceV4;
-        
-        logger.info('✅ 飞书v4 API服务初始化完成', {
-          mode: feishuServiceV4.mode,
-          status: feishuServiceV4.getConnectionStatus()
-        });
-      }
+      feishuService = new FeishuServiceV1({
+        appId: envConfig.feishu.appId,
+        appSecret: envConfig.feishu.appSecret,
+        verificationToken: envConfig.feishu.verificationToken || '',
+        encryptKey: envConfig.feishu.encryptKey || undefined,
+        mode: envConfig.feishu.mode || 'eventsource',
+        supabaseUrl: envConfig.supabase.url,
+        supabaseKey: envConfig.supabase.anonKey,
+        enableSignatureVerification: envConfig.feishu.enableSignatureVerification || false
+      });
+      
+      logger.info('✅ 飞书v1 API服务初始化完成', {
+        mode: envConfig.feishu.mode || 'eventsource',
+        signatureVerification: envConfig.feishu.enableSignatureVerification || false
+      });
     }
     
     if (!feishuService) {
@@ -87,14 +56,41 @@ async function main() {
     }
     
     // 3. 初始化评论同步服务
-    let reviewSyncService: ReviewSyncService | null = null;
+    let reviewSyncService: ReviewSyncService | SmartReviewSyncService | null = null;
     if (feishuService) {
-      reviewSyncService = new ReviewSyncService(
-        fetcher,
-        db,
-        feishuService
-      );
-      logger.info('✅ 评论同步服务初始化完成');
+      // 检查是否启用智能推送功能
+      const useSmartPush = appConfig.features?.smartPushNotifications;
+      
+      if (useSmartPush) {
+        // 使用智能同步服务
+        reviewSyncService = new SmartReviewSyncService(
+          fetcher,
+          db,
+          feishuService,
+          {
+            pushNewReviews: appConfig.sync.reviews.pushNewReviews,
+            pushUpdatedReviews: appConfig.sync.reviews.pushUpdatedReviews,
+            pushHistoricalReviews: appConfig.sync.reviews.pushHistoricalReviews,
+            markHistoricalAsPushed: appConfig.sync.reviews.markHistoricalAsPushed,
+            historicalThresholdHours: 24
+          }
+        );
+        logger.info('✅ 智能评论同步服务初始化完成');
+      } else {
+        // 使用传统同步服务
+        reviewSyncService = new ReviewSyncService(
+          fetcher,
+          db,
+          feishuService
+        );
+        logger.info('✅ 传统评论同步服务初始化完成');
+      }
+      
+      // 将ReviewSyncService注入到FeishuServiceV1中
+      if (feishuService instanceof FeishuServiceV1) {
+        feishuService.setReviewSyncService(reviewSyncService as ReviewSyncService);
+        logger.info('✅ 已将ReviewSyncService注入到FeishuServiceV1');
+      }
     } else {
       logger.warn('⚠️  飞书服务未配置，评论同步服务将不可用');
     }
@@ -111,27 +107,52 @@ async function main() {
       res.json({ 
         status: 'ok', 
         timestamp: new Date().toISOString(),
-        version: '2.0.0',
-        apiVersion: apiVersion,
-        feishuServiceType: isV1Api ? 'v1' : 'v4'
+        version: '2.1.0',
+        apiVersion: 'v1',
+        feishuServiceType: 'v1'
       });
     });
     
-    // 根据API版本配置对应的飞书路由
-    if (isV1Api && feishuService) {
-      // 使用完整的v1 API路由
-      initializeFeishuServiceV1(feishuService as FeishuServiceV1);
-      app.use('/feishu', feishuRoutesV1);
-      logger.info('🔗 已配置飞书v1 API路由（完整版）');
-    } else if (feishuService) {
-      // 使用v4 API路由
-      app.use('/feishu', createFeishuRoutesV2(feishuService as FeishuService));
-      logger.info('🔗 已配置飞书v4 API路由');
+    // 配置飞书v1 API路由
+    if (feishuService) {
+      initializeFeishuServiceV1(feishuService);
+      app.use('/feishu', feishuRoutes);
+      logger.info('🔗 已配置飞书v1 API路由');
     }
+    
+    // API认证中间件
+    const apiAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const apiKey = req.headers['x-api-key'];
+      
+      logger.debug('API认证检查', { 
+        providedKey: apiKey, 
+        expectedKey: envConfig.server.apiKey,
+        hasExpectedKey: !!envConfig.server.apiKey
+      });
+      
+      if (!envConfig.server.apiKey || envConfig.server.apiKey === 'your_api_key_for_http_endpoints') {
+        logger.warn('API认证未配置，跳过认证检查');
+        return next();
+      }
+      
+      if (!apiKey || apiKey !== envConfig.server.apiKey) {
+        logger.warn('API认证失败', { 
+          providedKey: apiKey ? '已提供但不匹配' : '未提供',
+          ip: req.ip
+        });
+        return res.status(401).json({
+          success: false,
+          error: 'API认证失败，请提供有效的X-API-Key',
+          code: 'UNAUTHORIZED'
+        });
+      }
+      
+      next();
+    };
     
     // 评论同步API端点
     if (reviewSyncService) {
-      app.post('/api/sync', async (_req, res) => {
+      app.post('/api/sync', apiAuthMiddleware, async (_req, res) => {
         try {
           logger.info('手动触发评论同步');
           const results = [];
@@ -150,7 +171,7 @@ async function main() {
         }
       });
       
-      app.get('/api/sync/status', (_req, res) => {
+      app.get('/api/sync/status', apiAuthMiddleware, (_req, res) => {
         res.json({
           success: true,
           enabled: !!reviewSyncService,
@@ -169,13 +190,7 @@ async function main() {
     // 发送启动确认消息
     if (feishuService) {
       try {
-        if (isV1Api) {
-          await (feishuService as FeishuServiceV1).sendConfirmationMessage();
-        } else {
-          // v4版本的确认消息
-          const chatId = 'oc_130c7aece1e0c64c817d4bc764d1b686';
-          await (feishuService as FeishuServiceV1).sendTextMessage(chatId, `🚀 Protalk服务启动成功 - API版本: ${apiVersion}\n\n⏰ 启动时间: ${new Date().toLocaleString('zh-CN')}\n📊 监控状态: 已激活`);
-        }
+        await feishuService.sendConfirmationMessage();
         logger.info('✅ 启动确认消息发送成功');
       } catch (error) {
         logger.warn('⚠️  启动确认消息发送失败，但不影响服务运行', { 
@@ -186,7 +201,7 @@ async function main() {
     
     // 6. 设置定时任务
     if (reviewSyncService) {
-      const cronExpression = '*/10 * * * *'; // 每10分钟同步一次（稍微放宽间隔）
+      const cronExpression = appConfig.sync.reviews.interval || '*/10 * * * *'; // 从配置文件读取同步间隔
       cron.schedule(cronExpression, async () => {
         try {
           logger.info('⏰ 开始定时同步评论');
@@ -255,8 +270,8 @@ async function main() {
     logger.info('🎉 Protalk应用启动完成');
     logger.info('📊 配置信息:', {
       port: envConfig.server.port,
-      feishuApiVersion: apiVersion,
-      feishuMode: envConfig.feishu.mode || (isV1Api ? 'eventsource' : 'webhook'),
+      feishuApiVersion: 'v1',
+      feishuMode: envConfig.feishu.mode || 'eventsource',
       signatureVerification: envConfig.feishu.enableSignatureVerification || false,
       storeCount: appConfig.stores.length
     });

@@ -1,6 +1,7 @@
 import logger from '../utils/logger';
 import { IPusher } from '../types';
 import { FeishuBotV1 } from '../modules/feishu/FeishuBotV1';
+import { ReviewSyncService } from './ReviewSyncService';
 
 interface FeishuServiceV1Config {
   appId: string;
@@ -46,6 +47,7 @@ class EventSourceMode implements PusherMode {
 export class FeishuServiceV1 implements IPusher {
   private feishuBot: FeishuBotV1;
   private currentMode: EventSourceMode;
+  private reviewSyncService?: ReviewSyncService;
 
   constructor(private config: FeishuServiceV1Config) {
     this.feishuBot = new FeishuBotV1({
@@ -399,6 +401,52 @@ export class FeishuServiceV1 implements IPusher {
       }
     }
     logger.info('批量评论推送完成', { count: reviews.length, type });
+  }
+
+  /**
+   * 设置ReviewSyncService实例
+   */
+  setReviewSyncService(reviewSyncService: ReviewSyncService): void {
+    this.reviewSyncService = reviewSyncService;
+    logger.info('已设置ReviewSyncService实例');
+  }
+
+  /**
+   * 处理回复操作 - 集成真实App Store Connect API
+   */
+  async handleReplyAction(reviewId: string, replyContent: string, userId: string): Promise<void> {
+    try {
+      logger.info('处理回复操作 - 使用真实API (V1)', {
+        reviewId,
+        replyContent: replyContent.substring(0, 50) + '...',
+        userId
+      });
+
+      if (!this.reviewSyncService) {
+        throw new Error('ReviewSyncService未初始化');
+      }
+
+      // 调用真实的App Store Connect API
+      const result = await this.reviewSyncService.replyToReview(reviewId, replyContent);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'App Store API回复失败');
+      }
+
+      logger.info('App Store评论回复成功 (V1)', { 
+        reviewId, 
+        userId,
+        responseDate: result.responseDate
+      });
+      
+    } catch (error) {
+      logger.error('App Store评论回复失败 (V1)', {
+        reviewId,
+        userId,
+        error: error instanceof Error ? error.message : error
+      });
+      throw error;
+    }
   }
 
   /**

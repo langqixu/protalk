@@ -1,4 +1,4 @@
-import { Review, ProcessedReviews } from '../../types';
+import { AppReview, ProcessedReviews } from '../../types';
 import logger from '../../utils/logger';
 
 export class DataProcessor {
@@ -6,21 +6,21 @@ export class DataProcessor {
    * 处理评论数据，识别新增和更新的评论
    */
   static processReviews(
-    apiReviews: Review[], 
+    apiReviews: AppReview[], 
     existingReviewIds: Set<string>
   ): ProcessedReviews {
-    const newReviews: Review[] = [];
-    const updatedReviews: Review[] = [];
+    const newReviews: AppReview[] = [];
+    const updatedReviews: AppReview[] = [];
 
     for (const review of apiReviews) {
-      if (!existingReviewIds.has(review.id)) {
+      if (!existingReviewIds.has(review.reviewId)) {
         // 新增评论
         newReviews.push(review);
-        logger.debug('识别到新评论', { reviewId: review.id, appId: review.appId });
+        logger.debug('识别到新评论', { reviewId: review.reviewId, appId: review.appId });
       } else {
         // 已存在的评论，检查是否有更新
         updatedReviews.push(review);
-        logger.debug('识别到已存在评论', { reviewId: review.id, appId: review.appId });
+        logger.debug('识别到已存在评论', { reviewId: review.reviewId, appId: review.appId });
       }
     }
 
@@ -52,19 +52,19 @@ export class DataProcessor {
   /**
    * 验证评论数据完整性
    */
-  static validateReview(review: Review): boolean {
-    const requiredFields = ['id', 'appId', 'rating', 'body', 'nickname', 'createdDate'];
+  static validateReview(review: AppReview): boolean {
+    const requiredFields = ['reviewId', 'appId', 'rating', 'body', 'reviewerNickname', 'createdDate'];
     
     for (const field of requiredFields) {
-      if (!review[field as keyof Review]) {
-        logger.warn('评论数据缺少必需字段', { field, reviewId: review.id });
+      if (!review[field as keyof AppReview]) {
+        logger.warn('评论数据缺少必需字段', { field, reviewId: review.reviewId });
         return false;
       }
     }
 
     // 验证评分范围
     if (review.rating < 1 || review.rating > 5) {
-      logger.warn('评论评分超出范围', { rating: review.rating, reviewId: review.id });
+      logger.warn('评论评分超出范围', { rating: review.rating, reviewId: review.reviewId });
       return false;
     }
 
@@ -80,7 +80,7 @@ export class DataProcessor {
   /**
    * 过滤无效评论
    */
-  static filterValidReviews(reviews: Review[]): Review[] {
+  static filterValidReviews(reviews: AppReview[]): AppReview[] {
     const validReviews = reviews.filter(review => this.validateReview(review));
     
     const invalidCount = reviews.length - validReviews.length;
@@ -98,13 +98,13 @@ export class DataProcessor {
   /**
    * 去重评论（基于ID）
    */
-  static deduplicateReviews(reviews: Review[]): Review[] {
+  static deduplicateReviews(reviews: AppReview[]): AppReview[] {
     const seen = new Set<string>();
-    const uniqueReviews: Review[] = [];
+    const uniqueReviews: AppReview[] = [];
 
     for (const review of reviews) {
-      if (!seen.has(review.id)) {
-        seen.add(review.id);
+      if (!seen.has(review.reviewId)) {
+        seen.add(review.reviewId);
         uniqueReviews.push(review);
       }
     }
@@ -124,14 +124,14 @@ export class DataProcessor {
   /**
    * 按创建时间排序评论（最新的在前）
    */
-  static sortReviewsByDate(reviews: Review[]): Review[] {
+  static sortReviewsByDate(reviews: AppReview[]): AppReview[] {
     return [...reviews].sort((a, b) => b.createdDate.getTime() - a.createdDate.getTime());
   }
 
   /**
    * 限制评论数量（防止内存溢出）
    */
-  static limitReviews(reviews: Review[], maxCount: number = 1000): Review[] {
+  static limitReviews(reviews: AppReview[], maxCount: number = 1000): AppReview[] {
     if (reviews.length <= maxCount) {
       return reviews;
     }
@@ -148,7 +148,7 @@ export class DataProcessor {
    * 完整的评论数据处理流程
    */
   static processReviewBatch(
-    apiReviews: Review[], 
+    apiReviews: AppReview[], 
     existingReviewIds: Set<string>,
     maxCount: number = 1000
   ): ProcessedReviews {

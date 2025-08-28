@@ -8,13 +8,34 @@
     }
   ],
   "sync": {
-    "interval": "0 * * * *",
-    "batchSize": 100,
-    "maxRetries": 3,
-    "retryDelay": 1000
+    "reviews": {
+      "interval": "*/10 * * * *",
+      "batchSize": 100,
+      "maxRetries": 3,
+      "retryDelay": 1000,
+      "enableIncremental": true,
+      "pushNewReviews": false,
+      "pushUpdatedReviews": false,
+      "pushHistoricalReviews": false,
+      "markHistoricalAsPushed": true
+    },
+    "ratings": {
+      "dailyReportTime": "30 9 * * *",
+      "aggregationPeriod": "daily",
+      "pushDailyReport": true,
+      "includeTrends": true,
+      "trendDays": 7,
+      "enabled": true
+    }
   },
   "api": {
     "rateLimit": 100,
     "timeout": 30000
+  },
+  "features": {
+    "unifiedDataModel": true,
+    "smartPushNotifications": true,
+    "contentChangeDetection": true,
+    "historicalDataMigration": true
   }
 }

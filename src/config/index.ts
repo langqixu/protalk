@@ -59,7 +59,7 @@ function loadEnvConfig(): EnvConfig {
     },
     feishu: {
       mode: (process.env['FEISHU_MODE'] as 'webhook' | 'eventsource') || 'webhook',
-      apiVersion: (process.env['FEISHU_API_VERSION'] as 'v1' | 'v4') || 'v1',
+      // API版本固定为v1
       enableSignatureVerification: process.env['FEISHU_ENABLE_SIGNATURE_VERIFICATION'] === 'true',
       ...(process.env['FEISHU_APP_ID'] && { appId: process.env['FEISHU_APP_ID'] }),
       ...(process.env['FEISHU_APP_SECRET'] && { appSecret: process.env['FEISHU_APP_SECRET'] }),
@@ -75,7 +75,15 @@ function loadEnvConfig(): EnvConfig {
     }
   };
 
-  logger.info('环境配置加载成功');
+  logger.info('环境配置加载成功', {
+    hasApiKey: !!config.server.apiKey,
+    apiKeyLength: config.server.apiKey?.length || 0,
+    feishuConfig: {
+      hasAppId: !!config.feishu.appId,
+      hasAppSecret: !!config.feishu.appSecret,
+      mode: config.feishu.mode
+    }
+  });
   return config;
 }
 

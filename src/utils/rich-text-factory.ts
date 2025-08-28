@@ -4,12 +4,12 @@
  */
 
 import { FeishuCardV2 } from './feishu-card-v2-builder';
-import { 
-  ReviewCardTemplates, 
-  AppReview,
-  createReviewCard,
-  createCompactReviewCard 
-} from './review-card-templates';
+import { AppReview } from '../types';
+// import { 
+//   ReviewCardTemplates, 
+//   createReviewCard,
+//   createCompactReviewCard 
+// } from './review-card-templates';
 import logger from './logger';
 
 // ================================
@@ -63,13 +63,27 @@ export class RichTextFactory {
   /**
    * 创建App Store评论富文本卡片
    */
-  static createReviewMessage(review: AppReview, compact: boolean = false): FeishuCardV2 {
+  static createReviewMessage(review: AppReview, _compact: boolean = false): FeishuCardV2 {
     try {
-      if (compact) {
-        return createCompactReviewCard(review);
-      } else {
-        return createReviewCard(review);
-      }
+      // 简化的评论卡片
+      const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
+      
+      return {
+        config: { wide_screen_mode: true },
+        header: {
+          title: { tag: 'plain_text', content: '📱 App Store 评论' },
+          template: 'blue'
+        },
+        elements: [
+          {
+            tag: 'div',
+            text: {
+              tag: 'lark_md',
+              content: `**评分**: ${stars} ${review.rating}/5\n**用户**: ${review.reviewerNickname || '匿名'}\n**内容**: ${review.body || '无内容'}`
+            }
+          }
+        ]
+      } as FeishuCardV2;
     } catch (error) {
       logger.error('创建评论卡片失败', { 
         error: error instanceof Error ? error.message : error,
@@ -88,14 +102,26 @@ export class RichTextFactory {
     appName: string,
     reviews: AppReview[]
   ): FeishuCardV2 {
-    // 计算统计数据
-    const stats = this.calculateReviewStats(reviews);
+    // 简化实现
     
-    return ReviewCardTemplates.createReviewSummaryCard(appName, reviews, {
-      total: reviews.length,
-      averageRating: stats.averageRating,
-      ratingDistribution: stats.ratingDistribution
-    });
+    // return ReviewCardTemplates.createReviewSummaryCard(appName, reviews, {
+    // 暂时返回简单卡片
+    return {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { tag: 'plain_text', content: '📊 评论汇总' },
+        template: 'blue'
+      },
+      elements: [
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**${appName}** 的评论汇总\n共 ${reviews.length} 条评论`
+          }
+        }
+      ]
+    } as FeishuCardV2;
   }
 
   /**
@@ -326,22 +352,9 @@ export class RichTextFactory {
   // ================================
 
   /**
-   * 计算评论统计数据
+   * 计算评论统计数据 (暂时未使用)
    */
-  private static calculateReviewStats(reviews: AppReview[]) {
-    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-    const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0;
-    
-    const ratingDistribution = reviews.reduce((dist, review) => {
-      dist[review.rating] = (dist[review.rating] || 0) + 1;
-      return dist;
-    }, {} as { [key: number]: number });
-
-    return {
-      averageRating,
-      ratingDistribution
-    };
-  }
+  // 暂时注释掉未使用的方法
 
   /**
    * 获取通知类型配置
@@ -404,14 +417,14 @@ export class RichTextFactory {
    */
   private static createFallbackReviewCard(review: AppReview): FeishuCardV2 {
     const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
-    const storeIcon = review.store_type === 'ios' ? '📱' : '🤖';
+    const storeIcon = '📱'; // 默认iOS
 
     return {
       config: { wide_screen_mode: true },
       header: {
         title: { 
           tag: 'plain_text', 
-          content: `${storeIcon} ${review.app_name} - 评论通知` 
+          content: `${storeIcon} App Store - 评论通知` 
         },
         template: 'blue'
       },
@@ -420,7 +433,7 @@ export class RichTextFactory {
           tag: 'div',
           text: {
             tag: 'lark_md',
-            content: `**评分**: ${stars} ${review.rating}/5\n**用户**: ${review.author || '匿名'}\n**内容**: ${review.content}`
+            content: `**评分**: ${stars} ${review.rating}/5\n**用户**: ${review.reviewerNickname || '匿名'}\n**内容**: ${review.body || '无内容'}`
           }
         }
       ]

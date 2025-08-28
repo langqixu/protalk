@@ -80,6 +80,16 @@ export interface ButtonElement {
   };
 }
 
+export interface InputElement {
+  tag: 'input';
+  name: string;
+  required?: boolean;
+  placeholder?: TextElement;
+  default_value?: string;
+  width?: 'default' | 'fill' | 'auto';
+  max_length?: number;
+}
+
 export interface ImageElement {
   tag: 'img';
   img_key: string;
@@ -127,7 +137,8 @@ export type CardElement =
   | ColumnSetElement 
   | NoteElement 
   | HrElement 
-  | ActionElement;
+  | ActionElement
+  | InputElement;
 
 export interface FeishuCardV2 {
   config?: CardConfig;
@@ -265,6 +276,35 @@ export class FeishuCardV2Builder {
       actions: actionButtons,
       layout
     });
+    return this;
+  }
+
+  /**
+   * 添加输入框元素
+   */
+  addInput(
+    name: string,
+    options: {
+      placeholder?: string;
+      defaultValue?: string;
+      required?: boolean;
+      maxLength?: number;
+      width?: InputElement['width'];
+    } = {}
+  ): this {
+    const input: InputElement = {
+      tag: 'input',
+      name,
+      required: options.required || false,
+      width: options.width || 'fill',
+      ...(options.placeholder && { 
+        placeholder: { tag: 'plain_text', content: options.placeholder }
+      }),
+      ...(options.defaultValue && { default_value: options.defaultValue }),
+      ...(options.maxLength && { max_length: options.maxLength })
+    };
+
+    this.card.elements.push(input);
     return this;
   }
 

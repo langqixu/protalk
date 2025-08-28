@@ -1,7 +1,8 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { IReviewFetcher, Review } from '../../types';
+import { IReviewFetcher, AppReview } from '../../types';
 import { JWTManager } from '../../utils/jwt';
 import { EnvConfig } from '../../types';
+import { AppStoreErrorHandler } from '../../utils/app-store-error-handler';
 import logger from '../../utils/logger';
 
 interface AppStoreReviewResponse {
@@ -77,10 +78,10 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
   /**
    * 同步评论数据
    */
-  async syncReviews(appId: string): Promise<Review[]> {
+  async syncReviews(appId: string): Promise<AppReview[]> {
     logger.info('开始同步App Store评论', { appId });
     
-    const allReviews: Review[] = [];
+    const allReviews: AppReview[] = [];
     let nextUrl: string | undefined = `/v1/apps/${appId}/customerReviews?sort=-createdDate&limit=100&include=response`;
 
     try {
@@ -118,7 +119,7 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
   /**
    * 获取单页评论数据
    */
-  private async fetchReviewsPage(url: string): Promise<Review[]> {
+  private async fetchReviewsPage(url: string): Promise<AppReview[]> {
     try {
       const response: AxiosResponse<AppStoreReviewResponse> = await this.httpClient.get(url);
       return this.transformReviews(response.data);
@@ -132,10 +133,10 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
   }
 
   /**
-   * 转换App Store API响应为Review对象
+   * 转换App Store API响应为AppReview对象
    */
-  private transformReviews(response: AppStoreReviewResponse): Review[] {
-    const reviews: Review[] = [];
+  private transformReviews(response: AppStoreReviewResponse): AppReview[] {
+    const reviews: AppReview[] = [];
     const responses = new Map<string, { body: string; createdDate: string }>();
 
     // 处理回复数据
@@ -153,15 +154,21 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
     // 处理评论数据
     for (const item of response.data) {
       if (item.type === 'customerReviews') {
-        const review: Review = {
-          id: item.id,
+        const review: AppReview = {
+          id: '', // 数据库主键，在保存时生成
+          reviewId: item.id,
           appId: '', // 将在外部设置
           rating: item.attributes.rating,
-          title: item.attributes.title || undefined,
-          body: item.attributes.body,
-          nickname: item.attributes.reviewerNickname,
+          title: item.attributes.title || null,
+          body: item.attributes.body || null,
+          reviewerNickname: item.attributes.reviewerNickname,
           createdDate: new Date(item.attributes.createdDate),
           isEdited: item.attributes.isEdited,
+          dataType: (item.attributes.body && item.attributes.body.trim()) ? 'review' : 'rating_only',
+          firstSyncAt: new Date(),
+          isPushed: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
         };
 
         // 添加回复信息（如果有）
@@ -179,17 +186,29 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
   }
 
   /**
-   * 回复评论
+   * 回复评论 - 集成增强错误处理
    */
   async replyToReview(reviewId: string, responseBody: string): Promise<{ success: boolean; responseDate: Date }> {
-    logger.info('开始回复评论', { reviewId });
+    logger.info('开始回复App Store评论', { 
+      reviewId, 
+      responseLength: responseBody.length 
+    });
 
     try {
+      // 验证回复内容
+      if (!responseBody || responseBody.trim().length === 0) {
+        throw new Error('回复内容不能为空');
+      }
+
+      if (responseBody.length > 1000) {
+        throw new Error('回复内容不能超过1000字符');
+      }
+
       const payload = {
         data: {
           type: 'customerReviewResponses',
           attributes: {
-            responseBody: responseBody
+            responseBody: responseBody.trim()
           },
           relationships: {
             review: {
@@ -202,22 +221,47 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
         }
       };
 
+      logger.debug('发送App Store API请求', { 
+        reviewId, 
+        payloadType: payload.data.type,
+        url: '/v1/customerReviewResponses'
+      });
+
       const response = await this.httpClient.post('/v1/customerReviewResponses', payload);
+
+      if (!response.data?.data?.attributes?.lastModifiedDate) {
+        throw new Error('API响应缺少必要的日期信息');
+      }
 
       const responseDate = new Date(response.data.data.attributes.lastModifiedDate);
       
-      logger.info('评论回复成功', { reviewId, responseDate });
+      logger.info('App Store评论回复成功', { 
+        reviewId, 
+        responseDate,
+        responseId: response.data.data.id
+      });
       
       return {
         success: true,
         responseDate
       };
     } catch (error) {
-      logger.error('评论回复失败', { 
-        reviewId, 
-        error: error instanceof Error ? error.message : error 
+      // 使用增强的错误处理
+      AppStoreErrorHandler.logError(error, {
+        reviewId,
+        userId: 'system',
+        replyContent: responseBody.substring(0, 50) + '...'
       });
-      throw error;
+
+      const errorInfo = AppStoreErrorHandler.handleError(error);
+      
+      // 抛出用户友好的错误消息
+      const enhancedError = new Error(errorInfo.userMessage);
+      enhancedError.name = errorInfo.errorCode;
+      (enhancedError as any).retryable = errorInfo.retryable;
+      (enhancedError as any).technicalMessage = errorInfo.technicalMessage;
+      
+      throw enhancedError;
     }
   }
 }
