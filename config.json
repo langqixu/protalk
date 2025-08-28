@@ -10,7 +10,7 @@
   "sync": {
     "reviews": {
       "interval": "*/10 * * * *",
-      "batchSize": 100,
+      "batchSize": 20,
       "maxRetries": 3,
       "retryDelay": 1000,
       "enableIncremental": true,
