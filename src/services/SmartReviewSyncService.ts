@@ -173,8 +173,8 @@ export class SmartReviewSyncService {
         logger.debug('✅ 决定推送', {
           reviewId: review.reviewId,
           pushType: decision.pushType,
-          reason: decision.reason,
-          dataType: review.dataType
+          reason: decision.reason
+          // dataType 字段已移除
         });
       } else {
         toSkip.push({ review, reason: decision.reason });
@@ -182,8 +182,8 @@ export class SmartReviewSyncService {
         
         logger.debug('⏭️ 跳过推送', {
           reviewId: review.reviewId,
-          reason: decision.reason,
-          dataType: review.dataType
+          reason: decision.reason
+          // dataType 字段已移除
         });
       }
     }
@@ -297,25 +297,18 @@ export class SmartReviewSyncService {
   }
 
   /**
-   * 获取同步统计信息
+   * 获取同步统计信息 - 简化版本
    */
   async getSyncStats(appId: string): Promise<{
     totalReviews: number;
-    totalRatings: number;
-    pushedCount: number;
-    pendingPush: number;
     lastSyncTime: Date | null;
   }> {
     try {
-      const counts = await this.db.getReviewCountByType(appId);
+      const reviewIds = await this.db.getExistingReviewIds(appId);
       const lastSyncTime = await this.db.getLastSyncTime(appId);
       
-      // 这里可以进一步实现详细统计
       return {
-        totalReviews: counts.review,
-        totalRatings: counts.rating_only,
-        pushedCount: 0, // 需要实现统计已推送数量的查询
-        pendingPush: 0, // 需要实现统计待推送数量的查询
+        totalReviews: reviewIds.size,
         lastSyncTime
       };
     } catch (error) {
