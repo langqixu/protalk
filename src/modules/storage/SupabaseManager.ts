@@ -365,7 +365,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformAppReviewToDatabase(review: AppReview): DatabaseAppReview {
     return {
-      // 不再依赖id字段，主键已改为review_id
+      // id 字段已从 AppReview 类型中移除，不再写入
       review_id: review.reviewId,
       app_id: review.appId,
       rating: review.rating,
@@ -393,8 +393,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformDatabaseToAppReview(dbRecord: any): AppReview {
     return {
-      // 为了兼容性，使用reviewId作为id字段的值
-      id: dbRecord.review_id, // 使用review_id作为id的值
+      // id 字段已从 AppReview 类型中移除，不再读取
       reviewId: dbRecord.review_id,
       appId: dbRecord.app_id,
       rating: dbRecord.rating,
