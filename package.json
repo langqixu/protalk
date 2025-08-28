@@ -17,7 +17,9 @@
     "feishu:status": "curl -s http://localhost:3000/feishu/status | jq",
     "feishu:switch-webhook": "curl -X POST -H 'Content-Type: application/json' -d '{\"mode\":\"webhook\"}' http://localhost:3000/feishu/switch-mode",
     "feishu:switch-eventsource": "curl -X POST -H 'Content-Type: application/json' -d '{\"mode\":\"eventsource\"}' http://localhost:3000/feishu/switch-mode",
-    "feishu:reconnect": "curl -X POST http://localhost:3000/feishu/reconnect"
+    "feishu:reconnect": "curl -X POST http://localhost:3000/feishu/reconnect",
+    "validate:prod": "node scripts/validate-production-deployment.js",
+    "deploy:verify": "echo 'Please set PRODUCTION_URL and run: npm run validate:prod'"
   },
   "keywords": [
     "app-store",
