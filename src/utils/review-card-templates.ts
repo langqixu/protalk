@@ -1,0 +1,491 @@
+/**
+ * App Store评论卡片模板
+ * 基于飞书卡片v2组件系统的现代化设计
+ */
+
+import { 
+  FeishuCardV2, 
+  createCardBuilder,
+  CardHeader 
+} from './feishu-card-v2-builder';
+import logger from './logger';
+
+// ================================
+// 评论数据类型定义
+// ================================
+
+export interface AppReview {
+  id: string;
+  app_name: string;
+  app_id: string;
+  title?: string;
+  content: string;
+  rating: number;
+  author?: string;
+  store_type: 'ios' | 'android';
+  version?: string;
+  date?: string;
+  country?: string;
+  verified_purchase?: boolean;
+  helpful_count?: number;
+  developer_response?: {
+    content: string;
+    date: string;
+  };
+}
+
+// ================================
+// 评论卡片模板类
+// ================================
+
+export class ReviewCardTemplates {
+  
+  /**
+   * 创建标准评论卡片（v2格式）
+   */
+  static createStandardReviewCard(review: AppReview): FeishuCardV2 {
+    const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
+    const storeIcon = review.store_type === 'ios' ? '📱' : '🤖';
+    const template = ReviewCardTemplates.getRatingTemplate(review.rating);
+    
+    const builder = createCardBuilder()
+      .setConfig({ 
+        wide_screen_mode: true, 
+        enable_forward: true,
+        style: { theme: 'default' }
+      })
+      .setHeader({
+        title: { 
+          tag: 'plain_text', 
+          content: `${storeIcon} ${review.app_name} - 新评论通知` 
+        },
+        ...(review.title && {
+          subtitle: { 
+            tag: 'plain_text', 
+            content: review.title 
+          }
+        }),
+        template: template || 'default'
+      });
+
+    // 评分和基本信息
+    builder.addDiv(undefined, [
+      { 
+        isShort: true, 
+        text: { 
+          tag: 'lark_md', 
+          content: `**评分**\n${stars} ${review.rating}/5`,
+          text_size: 'medium'
+        }
+      },
+      { 
+        isShort: true, 
+        text: { 
+          tag: 'lark_md', 
+          content: `**用户**\n${review.author || '匿名用户'}`,
+          text_size: 'medium'
+        }
+      }
+    ]);
+
+    // 评论内容
+    if (review.content) {
+      builder.addHr()
+        .addDiv({
+          tag: 'lark_md',
+          content: `**评论内容**\n${review.content}`,
+          text_size: 'normal'
+        });
+    }
+
+    // 附加信息
+    const additionalInfo = ReviewCardTemplates.buildAdditionalInfo(review);
+    if (additionalInfo.length > 0) {
+      builder.addHr()
+        .addDiv(undefined, additionalInfo);
+    }
+
+    // 开发者回复
+    if (review.developer_response) {
+      builder.addHr()
+        .addNote([
+          { type: 'text', content: '👨‍💻 开发者回复' }
+        ])
+        .addDiv({
+          tag: 'lark_md',
+          content: review.developer_response.content,
+          text_size: 'small'
+        });
+    }
+
+    // 暂时移除操作按钮以避免action_type问题
+    // TODO: 修复按钮action_type后重新启用
+    builder.addHr()
+      .addNote([
+        { type: 'text', content: '💡 操作按钮功能开发中，敬请期待' }
+      ]);
+
+    return builder.build();
+  }
+
+  /**
+   * 创建紧凑型评论卡片
+   */
+  static createCompactReviewCard(review: AppReview): FeishuCardV2 {
+    const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
+    const storeIcon = review.store_type === 'ios' ? '📱' : '🤖';
+    const template = ReviewCardTemplates.getRatingTemplate(review.rating);
+
+    return createCardBuilder()
+      .setConfig({ 
+        wide_screen_mode: false,
+        style: { header_style: 'compact' }
+      })
+      .setHeader({
+        title: { 
+          tag: 'plain_text', 
+          content: `${storeIcon} ${review.app_name}`,
+          lines: 1
+        },
+        template: template || 'default'
+      })
+      .addColumnSet([
+        {
+          width: 'weighted',
+          weight: 3,
+          elements: [
+            {
+              type: 'div',
+              content: {
+                tag: 'lark_md',
+                content: `${stars} **${review.author || '匿名'}**\n${review.content.substring(0, 100)}${review.content.length > 100 ? '...' : ''}`,
+                text_size: 'small'
+              }
+            }
+          ]
+        },
+        {
+          width: 'weighted',
+          weight: 1,
+          elements: [
+            {
+              type: 'button',
+              content: {
+                text: '查看',
+                type: 'primary',
+                actionType: 'request',
+                value: { action: 'view', review_id: review.id }
+              }
+            }
+          ]
+        }
+      ])
+      .build();
+  }
+
+  /**
+   * 创建评论摘要卡片
+   */
+  static createReviewSummaryCard(
+    appName: string,
+    reviews: AppReview[],
+    stats: {
+      total: number;
+      averageRating: number;
+      ratingDistribution: { [key: number]: number };
+    }
+  ): FeishuCardV2 {
+    const avgStars = '⭐'.repeat(Math.round(stats.averageRating));
+    
+    const builder = createCardBuilder()
+      .setConfig({ wide_screen_mode: true, enable_forward: true })
+      .setHeader({
+        title: { 
+          tag: 'plain_text', 
+          content: `📊 ${appName} - 评论摘要报告` 
+        },
+        template: 'blue'
+      });
+
+    // 统计信息
+    builder.addDiv(undefined, [
+      { 
+        isShort: true, 
+        text: `**总评论数**\n${stats.total}` 
+      },
+      { 
+        isShort: true, 
+        text: `**平均评分**\n${avgStars} ${stats.averageRating.toFixed(1)}/5` 
+      }
+    ]);
+
+    // 评分分布
+    builder.addHr()
+      .addDiv('**评分分布**');
+
+    Object.entries(stats.ratingDistribution)
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .forEach(([rating, count]) => {
+        const percentage = ((count / stats.total) * 100).toFixed(1);
+        const stars = '⭐'.repeat(Number(rating));
+        builder.addDiv(`${stars} ${rating}星: ${count}条 (${percentage}%)`);
+      });
+
+    // 最新评论预览
+    if (reviews.length > 0) {
+      builder.addHr()
+        .addDiv('**最新评论**');
+
+      reviews.slice(0, 3).forEach((review, index) => {
+        const stars = '⭐'.repeat(review.rating);
+        const preview = review.content.substring(0, 80) + (review.content.length > 80 ? '...' : '');
+        
+        builder.addDiv(undefined, [
+          { 
+            isShort: false, 
+            text: `${index + 1}. ${stars} **${review.author || '匿名'}**\n${preview}` 
+          }
+        ]);
+      });
+    }
+
+    // 操作按钮
+    builder.addHr()
+      .addActionGroup([
+        {
+          text: '查看全部评论',
+          type: 'primary',
+          actionType: 'request',
+          value: { action: 'view_all_reviews', app_name: appName }
+        },
+        {
+          text: '导出报告',
+          type: 'default',
+          actionType: 'request',
+          value: { action: 'export_report', app_name: appName }
+        }
+      ]);
+
+    return builder.build();
+  }
+
+  /**
+   * 创建评论回复卡片
+   */
+  static createReplyCard(
+    originalReview: AppReview,
+    replyContent: string,
+    replyAuthor: string = '开发团队'
+  ): FeishuCardV2 {
+    const stars = '⭐'.repeat(originalReview.rating);
+    
+    return createCardBuilder()
+      .setConfig({ wide_screen_mode: true })
+      .setHeader({
+        title: { 
+          tag: 'plain_text', 
+          content: '💬 评论回复通知' 
+        },
+        template: 'green'
+      })
+      .addDiv('**原始评论**')
+      .addDiv(undefined, [
+        { isShort: true, text: `${stars} **${originalReview.author}**` },
+        { isShort: true, text: originalReview.title || '无标题' }
+      ])
+      .addDiv(`> ${originalReview.content}`)
+      .addHr()
+      .addDiv('**开发者回复**')
+      .addDiv({
+        tag: 'lark_md',
+        content: `**${replyAuthor}**: ${replyContent}`,
+        text_size: 'normal'
+      })
+      .addHr()
+      .addActionGroup([
+        {
+          text: '查看完整对话',
+          type: 'primary',
+          actionType: 'request',
+          value: { action: 'view_conversation', review_id: originalReview.id }
+        }
+      ])
+      .build();
+  }
+
+  /**
+   * 创建评论提醒卡片
+   */
+  static createReminderCard(
+    pendingCount: number,
+    urgentReviews: AppReview[]
+  ): FeishuCardV2 {
+    const builder = createCardBuilder()
+      .setConfig({ wide_screen_mode: true })
+      .setHeader({
+        title: { 
+          tag: 'plain_text', 
+          content: '🔔 评论处理提醒' 
+        },
+        template: 'orange'
+      })
+      .addDiv(`您有 **${pendingCount}** 条评论待处理`);
+
+    if (urgentReviews.length > 0) {
+      builder.addHr()
+        .addDiv('**需要优先处理的低分评论:**');
+
+      urgentReviews.forEach((review, index) => {
+        const stars = '⭐'.repeat(review.rating);
+        builder.addDiv(`${index + 1}. ${stars} ${review.author || '匿名'}: ${review.content.substring(0, 60)}...`);
+      });
+    }
+
+    builder.addHr()
+      .addActionGroup([
+        {
+          text: '立即处理',
+          type: 'primary',
+          actionType: 'request',
+          value: { action: 'process_reviews' }
+        },
+        {
+          text: '稍后提醒',
+          type: 'default',
+          actionType: 'request',
+          value: { action: 'snooze_reminder', duration: 3600 }
+        }
+      ]);
+
+    return builder.build();
+  }
+
+  // ================================
+  // 辅助方法
+  // ================================
+
+  /**
+   * 根据评分获取模板颜色
+   */
+  private static getRatingTemplate(rating: number): CardHeader['template'] {
+    if (rating >= 4) return 'green';
+    if (rating >= 3) return 'yellow';
+    if (rating >= 2) return 'orange';
+    return 'red';
+  }
+
+  /**
+   * 构建附加信息字段
+   */
+  private static buildAdditionalInfo(review: AppReview): Array<{ isShort: boolean; text: string }> {
+    const fields: Array<{ isShort: boolean; text: string }> = [];
+
+    if (review.version) {
+      fields.push({ 
+        isShort: true, 
+        text: `**版本**\n${review.version}` 
+      });
+    }
+
+    if (review.date) {
+      fields.push({ 
+        isShort: true, 
+        text: `**日期**\n${new Date(review.date).toLocaleDateString('zh-CN')}` 
+      });
+    }
+
+    if (review.country) {
+      fields.push({ 
+        isShort: true, 
+        text: `**地区**\n${review.country}` 
+      });
+    }
+
+    if (review.verified_purchase) {
+      fields.push({ 
+        isShort: true, 
+        text: `**购买验证**\n✅ 已验证` 
+      });
+    }
+
+    if (review.helpful_count && review.helpful_count > 0) {
+      fields.push({ 
+        isShort: true, 
+        text: `**有用**\n👍 ${review.helpful_count}` 
+      });
+    }
+
+    return fields;
+  }
+
+  /**
+   * 验证评论数据完整性
+   */
+  static validateReview(review: AppReview): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!review.id) errors.push('缺少评论ID');
+    if (!review.app_name) errors.push('缺少应用名称');
+    if (!review.content) errors.push('缺少评论内容');
+    if (typeof review.rating !== 'number' || review.rating < 1 || review.rating > 5) {
+      errors.push('评分必须是1-5之间的数字');
+    }
+    if (!['ios', 'android'].includes(review.store_type)) {
+      errors.push('商店类型必须是ios或android');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * 记录卡片创建日志
+   */
+  static logCardCreation(cardType: string, reviewId: string) {
+    logger.info('创建评论卡片', { 
+      cardType, 
+      reviewId, 
+      timestamp: new Date().toISOString() 
+    });
+  }
+}
+
+// ================================
+// 便捷导出函数
+// ================================
+
+/**
+ * 创建标准评论通知卡片
+ */
+export function createReviewCard(review: AppReview): FeishuCardV2 {
+  const validation = ReviewCardTemplates.validateReview(review);
+  if (!validation.valid) {
+    logger.error('评论数据验证失败', { errors: validation.errors, reviewId: review.id });
+    throw new Error(`评论数据无效: ${validation.errors.join(', ')}`);
+  }
+
+  ReviewCardTemplates.logCardCreation('standard', review.id);
+  return ReviewCardTemplates.createStandardReviewCard(review);
+}
+
+/**
+ * 创建紧凑评论卡片
+ */
+export function createCompactReviewCard(review: AppReview): FeishuCardV2 {
+  const validation = ReviewCardTemplates.validateReview(review);
+  if (!validation.valid) {
+    logger.error('评论数据验证失败', { errors: validation.errors, reviewId: review.id });
+    throw new Error(`评论数据无效: ${validation.errors.join(', ')}`);
+  }
+
+  ReviewCardTemplates.logCardCreation('compact', review.id);
+  return ReviewCardTemplates.createCompactReviewCard(review);
+}
+
+export default {
+  ReviewCardTemplates,
+  createReviewCard,
+  createCompactReviewCard
+};

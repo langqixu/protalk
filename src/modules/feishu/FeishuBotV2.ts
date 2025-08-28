@@ -17,7 +17,6 @@ interface FeishuBotV2Config {
  */
 export class FeishuBotV2 {
   private httpClient: AxiosInstance;
-  private supabase: any;
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
 
@@ -30,7 +29,8 @@ export class FeishuBotV2 {
       },
     });
 
-    this.supabase = createClient(config.supabaseUrl, config.supabaseKey);
+    // Initialize Supabase client if needed
+    createClient(config.supabaseUrl, config.supabaseKey);
     
     logger.info('飞书机器人V2初始化成功 - 支持混合API版本');
   }
@@ -246,7 +246,7 @@ export class FeishuBotV2 {
       if (chatIds.length > 0) {
         const firstChatId = chatIds[0];
         logger.info('获取到第一个群组ID', { chatId: firstChatId });
-        return firstChatId;
+        return firstChatId || null;
       }
       logger.warn('没有找到可用的群组');
       return null;

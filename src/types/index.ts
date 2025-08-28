@@ -48,6 +48,8 @@ export interface EnvConfig {
   };
   feishu: {
     mode?: 'webhook' | 'eventsource';
+    apiVersion?: 'v1' | 'v4';
+    enableSignatureVerification?: boolean;
     appId?: string;
     appSecret?: string;
     verificationToken?: string;

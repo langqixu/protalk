@@ -1,0 +1,515 @@
+/**
+ * 富文本消息工厂
+ * 统一管理各种类型的富文本消息生成
+ */
+
+import { FeishuCardV2 } from './feishu-card-v2-builder';
+import { 
+  ReviewCardTemplates, 
+  AppReview,
+  createReviewCard,
+  createCompactReviewCard 
+} from './review-card-templates';
+import logger from './logger';
+
+// ================================
+// 富文本消息类型定义
+// ================================
+
+export interface RichTextContent {
+  post: {
+    [locale: string]: {
+      title?: string;
+      content: Array<Array<{
+        tag: 'text' | 'a' | 'at';
+        text: string;
+        href?: string;
+        style?: {
+          bold?: boolean;
+          italic?: boolean;
+          strikethrough?: boolean;
+          underline?: boolean;
+        };
+      }>>;
+    };
+  };
+}
+
+export interface SystemNotification {
+  type: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  message: string;
+  action?: {
+    text: string;
+    url?: string;
+    callback?: string;
+  };
+}
+
+export interface ServiceStatus {
+  service: string;
+  status: 'running' | 'stopped' | 'error';
+  version: string;
+  uptime: number;
+  details?: Record<string, any>;
+}
+
+// ================================
+// 富文本消息工厂类
+// ================================
+
+export class RichTextFactory {
+  
+  /**
+   * 创建App Store评论富文本卡片
+   */
+  static createReviewMessage(review: AppReview, compact: boolean = false): FeishuCardV2 {
+    try {
+      if (compact) {
+        return createCompactReviewCard(review);
+      } else {
+        return createReviewCard(review);
+      }
+    } catch (error) {
+      logger.error('创建评论卡片失败', { 
+        error: error instanceof Error ? error.message : error,
+        reviewId: review.id 
+      });
+      
+      // 降级到简单文本卡片
+      return this.createFallbackReviewCard(review);
+    }
+  }
+
+  /**
+   * 创建评论摘要报告
+   */
+  static createReviewSummaryMessage(
+    appName: string,
+    reviews: AppReview[]
+  ): FeishuCardV2 {
+    // 计算统计数据
+    const stats = this.calculateReviewStats(reviews);
+    
+    return ReviewCardTemplates.createReviewSummaryCard(appName, reviews, {
+      total: reviews.length,
+      averageRating: stats.averageRating,
+      ratingDistribution: stats.ratingDistribution
+    });
+  }
+
+  /**
+   * 创建系统通知消息
+   */
+  static createSystemNotification(notification: SystemNotification): FeishuCardV2 {
+    const { type, title, message, action } = notification;
+    
+    // 根据类型选择模板和图标
+    const config = this.getNotificationConfig(type);
+    
+    const cardBuilder = {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { tag: 'plain_text' as const, content: `${config.icon} ${title}` },
+        template: config.template
+      },
+      elements: [
+        {
+          tag: 'div' as const,
+          text: {
+            tag: 'lark_md' as const,
+            content: message
+          }
+        }
+      ]
+    };
+
+    // 添加操作按钮
+    if (action) {
+      (cardBuilder.elements as any[]).push({
+        tag: 'hr'
+      });
+      
+      (cardBuilder.elements as any[]).push({
+        tag: 'action',
+        actions: [{
+                  tag: 'button',
+        text: { tag: 'plain_text', content: action.text },
+        type: 'primary',
+        action_type: action.url ? 'link' : 'request',
+        ...(action.url && { url: action.url }),
+        ...(action.callback && { value: { callback: action.callback } })
+        }]
+      });
+    }
+
+    return cardBuilder as FeishuCardV2;
+  }
+
+  /**
+   * 创建服务状态报告
+   */
+  static createServiceStatusMessage(status: ServiceStatus): FeishuCardV2 {
+    const statusConfig = this.getStatusConfig(status.status);
+    const uptimeFormatted = this.formatUptime(status.uptime);
+
+    return {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { 
+          tag: 'plain_text', 
+          content: `${statusConfig.icon} ${status.service} 服务状态` 
+        },
+        template: statusConfig.template
+      },
+      elements: [
+        {
+          tag: 'div',
+          fields: [
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**状态**\n${statusConfig.text}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**版本**\n${status.version}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**运行时间**\n${uptimeFormatted}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**更新时间**\n${new Date().toLocaleString('zh-CN')}`
+              }
+            }
+          ]
+        }
+      ]
+    } as FeishuCardV2;
+  }
+
+  /**
+   * 创建传统富文本消息（post格式）
+   */
+  static createLegacyRichText(
+    title: string,
+    content: string,
+    links?: Array<{ text: string; url: string }>
+  ): RichTextContent {
+    const textElements: Array<{
+      tag: 'text' | 'a';
+      text: string;
+      href?: string;
+      style?: any;
+    }> = [
+      {
+        tag: 'text',
+        text: content
+      }
+    ];
+
+    // 添加链接
+    if (links && links.length > 0) {
+      textElements.push({
+        tag: 'text',
+        text: '\n\n相关链接:\n'
+      });
+      
+      links.forEach((link, index) => {
+        if (index > 0) {
+          textElements.push({
+            tag: 'text',
+            text: '\n'
+          });
+        }
+        textElements.push({
+          tag: 'a',
+          text: link.text,
+          href: link.url
+        });
+      });
+    }
+
+    return {
+      post: {
+        zh_cn: {
+          title,
+          content: [textElements]
+        }
+      }
+    };
+  }
+
+  /**
+   * 创建评论批量处理报告
+   */
+  static createBatchProcessReport(
+    processedCount: number,
+    successCount: number,
+    failedCount: number,
+    duration: number
+  ): FeishuCardV2 {
+    const successRate = processedCount > 0 ? (successCount / processedCount * 100).toFixed(1) : '0';
+    const template = failedCount === 0 ? 'green' : failedCount < successCount ? 'yellow' : 'red';
+
+    return {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { 
+          tag: 'plain_text', 
+          content: '📊 评论处理报告' 
+        },
+        template
+      },
+      elements: [
+        {
+          tag: 'div',
+          fields: [
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**处理总数**\n${processedCount}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**成功数量**\n✅ ${successCount}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**失败数量**\n❌ ${failedCount}`
+              }
+            },
+            {
+              is_short: true,
+              text: {
+                tag: 'lark_md',
+                content: `**成功率**\n${successRate}%`
+              }
+            }
+          ]
+        },
+        {
+          tag: 'hr'
+        },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**处理耗时**: ${this.formatDuration(duration)}\n**完成时间**: ${new Date().toLocaleString('zh-CN')}`
+          }
+        }
+      ]
+    } as FeishuCardV2;
+  }
+
+  // ================================
+  // 辅助方法
+  // ================================
+
+  /**
+   * 计算评论统计数据
+   */
+  private static calculateReviewStats(reviews: AppReview[]) {
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0;
+    
+    const ratingDistribution = reviews.reduce((dist, review) => {
+      dist[review.rating] = (dist[review.rating] || 0) + 1;
+      return dist;
+    }, {} as { [key: number]: number });
+
+    return {
+      averageRating,
+      ratingDistribution
+    };
+  }
+
+  /**
+   * 获取通知类型配置
+   */
+  private static getNotificationConfig(type: SystemNotification['type']) {
+    const configs = {
+      info: { icon: 'ℹ️', template: 'blue' as const },
+      success: { icon: '✅', template: 'green' as const },
+      warning: { icon: '⚠️', template: 'yellow' as const },
+      error: { icon: '❌', template: 'red' as const }
+    };
+    return configs[type];
+  }
+
+  /**
+   * 获取服务状态配置
+   */
+  private static getStatusConfig(status: ServiceStatus['status']) {
+    const configs = {
+      running: { icon: '🟢', text: '正常运行', template: 'green' as const },
+      stopped: { icon: '🔴', text: '已停止', template: 'red' as const },
+      error: { icon: '🟡', text: '异常状态', template: 'yellow' as const }
+    };
+    return configs[status];
+  }
+
+  /**
+   * 格式化运行时间
+   */
+  private static formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    if (days > 0) {
+      return `${days}天 ${hours}小时`;
+    } else if (hours > 0) {
+      return `${hours}小时 ${minutes}分钟`;
+    } else {
+      return `${minutes}分钟`;
+    }
+  }
+
+  /**
+   * 格式化持续时间
+   */
+  private static formatDuration(milliseconds: number): string {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    
+    if (minutes > 0) {
+      return `${minutes}分钟 ${seconds % 60}秒`;
+    } else {
+      return `${seconds}秒`;
+    }
+  }
+
+  /**
+   * 创建降级评论卡片（当主卡片创建失败时使用）
+   */
+  private static createFallbackReviewCard(review: AppReview): FeishuCardV2 {
+    const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
+    const storeIcon = review.store_type === 'ios' ? '📱' : '🤖';
+
+    return {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { 
+          tag: 'plain_text', 
+          content: `${storeIcon} ${review.app_name} - 评论通知` 
+        },
+        template: 'blue'
+      },
+      elements: [
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**评分**: ${stars} ${review.rating}/5\n**用户**: ${review.author || '匿名'}\n**内容**: ${review.content}`
+          }
+        }
+      ]
+    } as FeishuCardV2;
+  }
+
+  /**
+   * 验证富文本内容
+   */
+  static validateRichText(content: any): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    try {
+      if (typeof content !== 'object' || content === null) {
+        errors.push('内容必须是对象');
+        return { valid: false, errors };
+      }
+
+      // 验证卡片格式
+      if (content.config || content.header || content.elements) {
+        if (!content.elements || !Array.isArray(content.elements)) {
+          errors.push('卡片必须包含elements数组');
+        }
+      }
+      
+      // 验证传统post格式
+      else if (content.post) {
+        if (typeof content.post !== 'object') {
+          errors.push('post内容必须是对象');
+        }
+      }
+      
+      else {
+        errors.push('无法识别的富文本格式');
+      }
+
+    } catch (error) {
+      errors.push(`验证过程出错: ${error instanceof Error ? error.message : error}`);
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+}
+
+// ================================
+// 便捷导出函数
+// ================================
+
+/**
+ * 快速创建评论通知
+ */
+export function createQuickReviewNotification(review: AppReview): FeishuCardV2 {
+  return RichTextFactory.createReviewMessage(review);
+}
+
+/**
+ * 快速创建系统通知
+ */
+export function createQuickSystemNotification(
+  type: SystemNotification['type'],
+  title: string,
+  message: string
+): FeishuCardV2 {
+  return RichTextFactory.createSystemNotification({ type, title, message });
+}
+
+/**
+ * 快速创建服务状态报告
+ */
+export function createQuickStatusReport(
+  service: string,
+  status: ServiceStatus['status'],
+  version: string = '1.0.0',
+  uptime: number = 0
+): FeishuCardV2 {
+  return RichTextFactory.createServiceStatusMessage({
+    service,
+    status,
+    version,
+    uptime
+  });
+}
+
+export default {
+  RichTextFactory,
+  createQuickReviewNotification,
+  createQuickSystemNotification,
+  createQuickStatusReport
+};

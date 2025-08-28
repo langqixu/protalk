@@ -59,6 +59,8 @@ function loadEnvConfig(): EnvConfig {
     },
     feishu: {
       mode: (process.env['FEISHU_MODE'] as 'webhook' | 'eventsource') || 'webhook',
+      apiVersion: (process.env['FEISHU_API_VERSION'] as 'v1' | 'v4') || 'v1',
+      enableSignatureVerification: process.env['FEISHU_ENABLE_SIGNATURE_VERIFICATION'] === 'true',
       ...(process.env['FEISHU_APP_ID'] && { appId: process.env['FEISHU_APP_ID'] }),
       ...(process.env['FEISHU_APP_SECRET'] && { appSecret: process.env['FEISHU_APP_SECRET'] }),
       ...(process.env['FEISHU_VERIFICATION_TOKEN'] && { verificationToken: process.env['FEISHU_VERIFICATION_TOKEN'] }),

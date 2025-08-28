@@ -1,6 +1,6 @@
 {
   "name": "protalk-app-review-service",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "App Store评论抓取、存储、飞书推送及回复服务",
   "main": "dist/index.js",
   "scripts": {
