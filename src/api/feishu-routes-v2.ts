@@ -118,7 +118,7 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
   // 群信息查询
   router.get('/chat-info', async (req: Request, res: Response) => {
     try {
-      const chatId = String(req.query.chat_id || '');
+      const chatId = String((req.query as any)['chat_id'] || '');
       if (!chatId) return res.status(400).json({ success: false, error: '缺少 chat_id' });
       const data = await (feishuService as any).feishuBot.getChatInfo(chatId);
       return res.json({ success: true, data });
@@ -131,7 +131,7 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
   // 群成员列表
   router.get('/member-list', async (req: Request, res: Response) => {
     try {
-      const chatId = String(req.query.chat_id || '');
+      const chatId = String((req.query as any)['chat_id'] || '');
       if (!chatId) return res.status(400).json({ success: false, error: '缺少 chat_id' });
       const data = await (feishuService as any).feishuBot.getChatMembers(chatId);
       return res.json({ success: true, data });
