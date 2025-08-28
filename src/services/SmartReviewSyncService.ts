@@ -192,6 +192,26 @@ export class SmartReviewSyncService {
     }
 
     logger.info('🧠 智能推送分析完成', { summary });
+    
+    // 🔑 关键修复：批量保存历史数据的isPushed状态
+    const historicalReviewsToUpdate = toSkip
+      .filter(item => item.reason.includes('历史数据'))
+      .map(item => item.review)
+      .filter(review => review.isPushed && review.pushType === 'historical');
+      
+    if (historicalReviewsToUpdate.length > 0) {
+      try {
+        await this.db.upsertAppReviews(historicalReviewsToUpdate);
+        logger.info('📦 批量更新历史数据isPushed状态', { 
+          count: historicalReviewsToUpdate.length 
+        });
+      } catch (error) {
+        logger.error('📦 批量更新历史数据状态失败', { 
+          error: error instanceof Error ? error.message : error 
+        });
+      }
+    }
+    
     return { toPush, toSkip, summary };
   }
 
