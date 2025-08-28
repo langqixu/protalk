@@ -26,7 +26,11 @@ WORKDIR /app
 # 拷贝运行所需文件
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY package*.json ./
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/config.json ./config.json
+
+# 日志目录
+RUN mkdir -p /app/logs
 
 # 创建日志目录
 RUN mkdir -p logs
