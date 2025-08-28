@@ -365,7 +365,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformAppReviewToDatabase(review: AppReview): DatabaseAppReview {
     return {
-      id: review.id,
+      id: (review as any).id || null, // id字段可能不存在，设为null
       review_id: review.reviewId,
       app_id: review.appId,
       rating: review.rating,
@@ -393,7 +393,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformDatabaseToAppReview(dbRecord: any): AppReview {
     return {
-      id: dbRecord.id,
+      id: dbRecord.id || null as any, // id字段在AppReview中可能不存在，暂时用any
       reviewId: dbRecord.review_id,
       appId: dbRecord.app_id,
       rating: dbRecord.rating,
