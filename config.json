@@ -14,8 +14,8 @@
       "maxRetries": 3,
       "retryDelay": 1000,
       "enableIncremental": true,
-      "pushNewReviews": false,
-      "pushUpdatedReviews": false,
+      "pushNewReviews": true,
+      "pushUpdatedReviews": true,
       "pushHistoricalReviews": false,
       "markHistoricalAsPushed": true
     },

@@ -254,6 +254,11 @@ export class SmartReviewSyncService {
         
         await this.pusher.pushReviewUpdate(reviewData, mappedPushType);
         
+        // 🔑 关键修复：推送成功后更新isPushed状态
+        review.isPushed = true;
+        review.pushType = pushType;
+        await this.db.upsertAppReviews([review]);
+        
         logger.info('📤 推送成功', {
           reviewId: review.reviewId,
           // dataType 字段已移除，不再区分 review 和 rating_only
