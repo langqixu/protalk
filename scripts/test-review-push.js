@@ -2,84 +2,131 @@
 
 const axios = require('axios');
 
+const BASE_URL = 'https://protalk.zeabur.app';
+
 async function testReviewPush() {
-  console.log('📱 测试评论推送到飞书...\n');
+  console.log('📱 测试App Store评论推送到飞书...\n');
 
   try {
-    // 1. 测试新评论推送
-    console.log('1. 测试新评论推送');
-    const newReview = {
-      content: `📱 **App Store 新评论通知**
+    // 1. 检查当前消息计数
+    console.log('1. 检查当前状态');
+    const statusResponse = await axios.get(`${BASE_URL}/feishu/status`);
+    const currentMessageCount = statusResponse.data.data.connection.messageCount;
+    console.log(`   📊 当前消息计数: ${currentMessageCount}\n`);
 
-⭐ **评分**: 5星
-👤 **用户**: 满意用户
-📅 **时间**: ${new Date().toLocaleString('zh-CN')}
-📝 **标题**: 🎉 非常棒的应用体验！
-💬 **内容**: 这个应用的设计真的很棒，界面简洁美观，功能也很实用。用户体验非常好，强烈推荐！
-
-🔗 **操作**: 点击查看详情或回复评论`
+    // 2. 创建模拟的App Store评论
+    console.log('2. 创建模拟评论数据');
+    const mockReview = {
+      id: `review_${Date.now()}`,
+      appId: 'com.example.app',
+      rating: 4,
+      title: '非常好用的应用',
+      body: '这个应用真的很棒！界面设计很美观，功能也很实用。希望开发者能继续保持，期待更多新功能！',
+      nickname: '快乐用户123',
+      createdDate: new Date(),
+      responseBody: null,
+      responseDate: null
     };
 
-    const newResult = await axios.post('http://localhost:3000/feishu/send-message', newReview);
-    console.log(`   ✅ 新评论推送结果: ${JSON.stringify(newResult.data)}\n`);
+    console.log('   📝 评论内容:', {
+      rating: mockReview.rating,
+      title: mockReview.title,
+      body: mockReview.body.substring(0, 50) + '...',
+      nickname: mockReview.nickname
+    });
 
-    // 等待2秒
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 3. 推送评论到飞书
+    console.log('3. 推送评论到飞书');
+    const pushResponse = await axios.post(`${BASE_URL}/feishu/send-card`, {
+      chat_id: 'oc_130c7aece1e0c64c817d4bc764d1b686',
+      cardData: {
+        config: {
+          wide_screen_mode: true
+        },
+        header: {
+          title: {
+            tag: 'plain_text',
+            content: '📱 App Store 评论 - 新评论'
+          },
+          template: 'blue'
+        },
+        elements: [
+          {
+            tag: 'div',
+            text: {
+              tag: 'lark_md',
+              content: `⭐⭐⭐⭐ 4 星\n\n👤 快乐用户123 · ${new Date().toLocaleString('zh-CN')}`
+            }
+          },
+          {
+            tag: 'div',
+            text: {
+              tag: 'lark_md',
+              content: '**非常好用的应用**\n\n这个应用真的很棒！界面设计很美观，功能也很实用。希望开发者能继续保持，期待更多新功能！'
+            }
+          },
+          {
+            tag: 'action',
+            actions: [
+              {
+                tag: 'button',
+                text: {
+                  tag: 'plain_text',
+                  content: '📤 提交回复'
+                },
+                type: 'primary',
+                value: {
+                  reviewId: mockReview.id,
+                  appId: mockReview.appId,
+                  action: 'submit_reply'
+                }
+              },
+              {
+                tag: 'button',
+                text: {
+                  tag: 'plain_text',
+                  content: '📊 查看详情'
+                },
+                type: 'default',
+                value: {
+                  reviewId: mockReview.id,
+                  appId: mockReview.appId,
+                  action: 'view_details'
+                }
+              }
+            ]
+          }
+        ]
+      }
+    });
 
-    // 2. 测试评论更新推送
-    console.log('2. 测试评论更新推送');
-    const updateReview = {
-      content: `📱 **App Store 评论更新通知**
+    console.log(`   ✅ 推送响应: ${JSON.stringify(pushResponse.data)}\n`);
 
-⭐ **评分**: 4星 (已更新)
-👤 **用户**: 更新用户
-📅 **时间**: ${new Date().toLocaleString('zh-CN')}
-📝 **标题**: 📝 评论已更新
-💬 **内容**: 用户修改了评论内容，现在评分是4星，但仍然很满意应用的功能。
+    // 4. 等待处理
+    console.log('4. 等待处理完成...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-🔄 **状态**: 评论已更新
-🔗 **操作**: 点击查看详情或回复评论`
-    };
+    // 5. 检查处理后的状态
+    console.log('5. 检查处理后的状态');
+    const newStatusResponse = await axios.get(`${BASE_URL}/feishu/status`);
+    const newMessageCount = newStatusResponse.data.data.connection.messageCount;
+    console.log(`   📊 新的消息计数: ${newMessageCount}`);
+    console.log(`   📈 消息计数变化: ${newMessageCount - currentMessageCount}\n`);
 
-    const updateResult = await axios.post('http://localhost:3000/feishu/send-message', updateReview);
-    console.log(`   ✅ 评论更新推送结果: ${JSON.stringify(updateResult.data)}\n`);
-
-    // 等待2秒
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 3. 测试开发者回复推送
-    console.log('3. 测试开发者回复推送');
-    const replyReview = {
-      content: `📱 **App Store 开发者回复通知**
-
-⭐ **评分**: 5星
-👤 **用户**: 满意用户
-📅 **时间**: ${new Date().toLocaleString('zh-CN')}
-💬 **用户评论**: 这个应用真的很棒，界面简洁美观，功能也很实用！
-
-💬 **开发者回复**: 感谢您的反馈！我们会继续改进产品体验，为用户提供更好的服务。
-
-✅ **状态**: 已回复
-🔗 **操作**: 点击查看详情`
-    };
-
-    const replyResult = await axios.post('http://localhost:3000/feishu/send-message', replyReview);
-    console.log(`   ✅ 开发者回复推送结果: ${JSON.stringify(replyResult.data)}\n`);
-
-    console.log('🎉 所有评论推送测试完成！');
-    console.log('\n📋 测试结果:');
-    console.log('✅ 新评论推送 - 成功');
-    console.log('✅ 评论更新推送 - 成功');
-    console.log('✅ 开发者回复推送 - 成功');
-    console.log('\n🎯 请在飞书群组中查看这些消息！');
+    if (newMessageCount > currentMessageCount) {
+      console.log('✅ 评论推送成功！');
+      console.log('💡 请在飞书群组中查看是否收到了交互式卡片消息');
+    } else {
+      console.log('❌ 评论推送失败！');
+    }
 
   } catch (error) {
-    console.error('❌ 评论推送测试失败:', error.message);
+    console.error('❌ 测试失败:', error.message);
     if (error.response) {
-      console.error('   响应状态:', error.response.status);
-      console.error('   响应数据:', error.response.data);
+      console.error('响应数据:', error.response.data);
     }
   }
 }
 
+// 运行测试
 testReviewPush().catch(console.error);

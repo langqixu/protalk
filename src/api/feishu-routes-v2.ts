@@ -416,7 +416,7 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
   // 发送卡片消息
   router.post('/send-card', async (req: Request, res: Response) => {
     try {
-      const { cardData } = req.body;
+      const { cardData, chat_id } = req.body;
       
       if (!cardData) {
         return res.status(400).json({ 
@@ -425,12 +425,16 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
         });
       }
 
-      const chatId = await (feishuService as any).feishuBot.getFirstChatId();
+      // 优先使用指定的chat_id，否则尝试自动获取
+      let chatId = chat_id;
       if (!chatId) {
-        return res.status(400).json({ 
-          success: false, 
-          error: '没有找到可用的群组' 
-        });
+        chatId = await (feishuService as any).feishuBot.getFirstChatId();
+        if (!chatId) {
+          return res.status(400).json({ 
+            success: false, 
+            error: '没有找到可用的群组' 
+          });
+        }
       }
 
       await (feishuService as any).feishuBot.sendCardMessage(chatId, cardData);
