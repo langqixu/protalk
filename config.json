@@ -1,0 +1,20 @@
+{
+  "stores": [
+    {
+      "type": "appstore",
+      "appId": "1077776989",
+      "enabled": true,
+      "name": "潮汐 for iOS"
+    }
+  ],
+  "sync": {
+    "interval": "0 * * * *",
+    "batchSize": 100,
+    "maxRetries": 3,
+    "retryDelay": 1000
+  },
+  "api": {
+    "rateLimit": 100,
+    "timeout": 30000
+  }
+}

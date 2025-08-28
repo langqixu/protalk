@@ -1,0 +1,60 @@
+{
+  "name": "protalk-app-review-service",
+  "version": "1.0.0",
+  "description": "App Store评论抓取、存储、飞书推送及回复服务",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
+    "deploy:prod": "NODE_ENV=production ./scripts/deploy.sh",
+    "vercel-build": "node build-standalone.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "feishu:status": "curl -s http://localhost:3000/feishu/status | jq",
+    "feishu:switch-webhook": "curl -X POST -H 'Content-Type: application/json' -d '{\"mode\":\"webhook\"}' http://localhost:3000/feishu/switch-mode",
+    "feishu:switch-eventsource": "curl -X POST -H 'Content-Type: application/json' -d '{\"mode\":\"eventsource\"}' http://localhost:3000/feishu/switch-mode",
+    "feishu:reconnect": "curl -X POST http://localhost:3000/feishu/reconnect"
+  },
+  "keywords": [
+    "app-store",
+    "reviews",
+    "feishu",
+    "supabase"
+  ],
+  "author": "Protalk Team",
+  "license": "MIT",
+  "dependencies": {
+    "@larksuiteoapi/card": "^1.0.14",
+    "@larksuiteoapi/event": "^1.0.14",
+    "@larksuiteoapi/node-sdk": "^1.55.0",
+    "@supabase/supabase-js": "^2.38.4",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "eventsource": "^4.0.0",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.8",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
