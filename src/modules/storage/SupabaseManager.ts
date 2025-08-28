@@ -9,6 +9,7 @@ interface SupabaseConfig {
 
 // 统一的数据库记录接口（基于最新表结构）
 interface DatabaseAppReview {
+  id: string;
   review_id: string;
   app_id: string;
   rating: number;
@@ -40,6 +41,7 @@ export class SupabaseManager implements IDatabaseManager {
 
   /**
    * 批量插入或更新AppReview（新结构）
+   * 使用review_id作为主键进行冲突检测
    */
   async upsertAppReviews(reviews: AppReview[]): Promise<void> {
     if (reviews.length === 0) {
@@ -50,6 +52,7 @@ export class SupabaseManager implements IDatabaseManager {
     try {
       const dbReviews = reviews.map(review => this.transformAppReviewToDatabase(review));
       
+      // 使用review_id作为主键进行upsert操作
       const { error } = await this.client
         .from('app_reviews')
         .upsert(dbReviews, { 
@@ -358,9 +361,11 @@ export class SupabaseManager implements IDatabaseManager {
 
   /**
    * 将AppReview对象转换为数据库格式
+   * 注意：id字段可以为空，主键已改为review_id
    */
   private transformAppReviewToDatabase(review: AppReview): DatabaseAppReview {
     return {
+      id: review.id,
       review_id: review.reviewId,
       app_id: review.appId,
       rating: review.rating,
@@ -388,6 +393,7 @@ export class SupabaseManager implements IDatabaseManager {
    */
   private transformDatabaseToAppReview(dbRecord: any): AppReview {
     return {
+      id: dbRecord.id,
       reviewId: dbRecord.review_id,
       appId: dbRecord.app_id,
       rating: dbRecord.rating,
