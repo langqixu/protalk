@@ -340,7 +340,7 @@ export class FeishuBot {
     try {
       const token = await this.getAccessToken();
       
-      await this.httpClient.post('/im/v1/messages', {
+      const resp = await this.httpClient.post('/im/v1/messages', {
         receive_id: chatId,
         receive_id_type: 'chat_id',
         msg_type: 'text',
@@ -351,9 +351,9 @@ export class FeishuBot {
         }
       });
 
-      logger.info('消息发送成功', { chatId });
+      logger.info('消息发送成功', { chatId, responseData: (resp as any)?.data });
     } catch (error) {
-      logger.error('发送消息失败', { chatId, error: error instanceof Error ? error.message : error });
+      logger.error('发送消息失败', { chatId, error: error instanceof Error ? error.message : error, errorResponse: (error as any)?.response?.data });
     }
   }
 
@@ -400,6 +400,40 @@ export class FeishuBot {
     }
   }
 
+  /**
+   * 获取群信息
+   */
+  async getChatInfo(chatId: string): Promise<any> {
+    const token = await this.getAccessToken();
+    try {
+      const resp = await this.httpClient.get(`/im/v1/chats/${chatId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      logger.info('获取群信息成功', { chatId });
+      return resp.data;
+    } catch (error) {
+      logger.error('获取群信息失败', { chatId, error: error instanceof Error ? error.message : error, errorResponse: (error as any)?.response?.data });
+      throw error;
+    }
+  }
+
+  /**
+   * 获取群成员列表
+   */
+  async getChatMembers(chatId: string, limit: number = 50): Promise<any> {
+    const token = await this.getAccessToken();
+    try {
+      const resp = await this.httpClient.get(`/im/v1/chats/${chatId}/members`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { page_size: limit }
+      });
+      logger.info('获取群成员成功', { chatId, count: resp?.data?.data?.items?.length });
+      return resp.data;
+    } catch (error) {
+      logger.error('获取群成员失败', { chatId, error: error instanceof Error ? error.message : error, errorResponse: (error as any)?.response?.data });
+      throw error;
+    }
+  }
   /**
    * 获取群组列表
    */

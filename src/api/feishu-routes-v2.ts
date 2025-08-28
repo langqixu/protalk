@@ -61,6 +61,9 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
         return res.json({ challenge });
       }
 
+      // 调试日志：完整事件体
+      try { logger.info('事件原始请求体', { body: req.body }); } catch {}
+
       // 立即返回响应，避免任何延迟
       res.json({ ok: true });
       
@@ -109,6 +112,32 @@ export function createFeishuRoutesV2(feishuService: IFeishuService) {
         return res.status(500).json({ error: 'Internal server error' });
       }
       return;
+    }
+  });
+
+  // 群信息查询
+  router.get('/chat-info', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.query.chat_id || '');
+      if (!chatId) return res.status(400).json({ success: false, error: '缺少 chat_id' });
+      const data = await (feishuService as any).feishuBot.getChatInfo(chatId);
+      return res.json({ success: true, data });
+    } catch (error) {
+      logger.error('获取群信息失败', { error: error instanceof Error ? error.message : error });
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '未知错误' });
+    }
+  });
+
+  // 群成员列表
+  router.get('/member-list', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.query.chat_id || '');
+      if (!chatId) return res.status(400).json({ success: false, error: '缺少 chat_id' });
+      const data = await (feishuService as any).feishuBot.getChatMembers(chatId);
+      return res.json({ success: true, data });
+    } catch (error) {
+      logger.error('获取群成员失败', { error: error instanceof Error ? error.message : error });
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '未知错误' });
     }
   });
 
