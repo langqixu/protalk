@@ -54,13 +54,17 @@ export class WebhookMode implements IFeishuMode {
    */
   async handleEvent(event: FeishuEvent): Promise<void> {
     try {
+      // 增加消息计数
+      this.status.messageCount++;
+      
       const handler = this.eventHandlers.get('event');
       if (handler) {
         await handler(event);
       }
 
       logger.debug('Webhook模式事件处理完成', {
-        eventType: event.type
+        eventType: event.type,
+        messageCount: this.status.messageCount
       });
     } catch (error) {
       this.status.errorCount++;
