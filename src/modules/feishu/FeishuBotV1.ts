@@ -540,8 +540,8 @@ export class FeishuBotV1 {
    */
   createReviewCard(review: any): any {
     try {
-      // 导入新的评论卡片模板
-      const { createReviewCard } = require('../../utils/review-card-templates');
+      // 使用统一的 v2 卡片构建器
+      const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
       
       // 转换数据格式以匹配新的接口
       const reviewData = {
@@ -561,9 +561,9 @@ export class FeishuBotV1 {
         developer_response: review.developer_response
       };
 
-      return createReviewCard(reviewData);
+      return buildReviewCardV2(reviewData);
     } catch (error) {
-      logger.error('使用新卡片模板失败，降级到简单模板', { error: error instanceof Error ? error.message : error });
+      logger.error('使用v2卡片构建器失败，降级到简单模板', { error: error instanceof Error ? error.message : error });
       
       // 降级到简单卡片
       const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
