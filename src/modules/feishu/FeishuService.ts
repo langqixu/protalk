@@ -480,7 +480,7 @@ export class FeishuService implements IFeishuService {
 
       const confirmMessage: FeishuMessage = {
         message_id: `confirm_${Date.now()}_${Math.random()}`,
-        chat_id: this.config.webhookUrl.split('/').pop() || 'default_chat',
+        chat_id: 'oc_130c7aece1e0c64c817d4bc764d1b686', // 使用固定的已知群组ID
         content: JSON.stringify(confirmCardData),
         card: confirmCardData,
         sender: {

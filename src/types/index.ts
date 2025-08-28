@@ -47,7 +47,6 @@ export interface EnvConfig {
     anonKey: string;
   };
   feishu: {
-    webhookUrl: string;
     mode?: 'webhook' | 'eventsource';
     appId?: string;
     appSecret?: string;

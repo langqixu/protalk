@@ -33,7 +33,6 @@ async function main() {
       feishuService = new FeishuService({
         appId: envConfig.feishu.appId,
         appSecret: envConfig.feishu.appSecret,
-        webhookUrl: envConfig.feishu.webhookUrl,
         mode: envConfig.feishu.mode || 'webhook',
         ...(envConfig.feishu.verificationToken && { verificationToken: envConfig.feishu.verificationToken }),
         ...(envConfig.feishu.encryptKey && { encryptKey: envConfig.feishu.encryptKey }),

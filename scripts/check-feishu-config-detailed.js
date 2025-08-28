@@ -7,7 +7,6 @@ console.log('1. 环境变量检查:');
 const feishuVars = [
   'FEISHU_APP_ID',
   'FEISHU_APP_SECRET', 
-  'FEISHU_WEBHOOK_URL',
   'FEISHU_VERIFICATION_TOKEN',
   'FEISHU_ENCRYPT_KEY',
   'FEISHU_MODE'
@@ -80,28 +79,60 @@ async function testFeishuAuth() {
   }
 }
 
-async function testWebhookUrl() {
-  const webhookUrl = process.env.FEISHU_WEBHOOK_URL;
-  if (!webhookUrl) {
-    console.log('   ❌ WEBHOOK_URL 未设置');
+async function testDirectMessage() {
+  const appId = process.env.FEISHU_APP_ID;
+  const appSecret = process.env.FEISHU_APP_SECRET;
+  
+  if (!appId || !appSecret) {
+    console.log('   ❌ APP_ID 或 APP_SECRET 未设置，跳过直接消息测试');
     return;
   }
   
-  console.log('   📡 正在测试Webhook URL...');
+  console.log('   📡 正在测试直接消息发送...');
   try {
-    const response = await axios.post(webhookUrl, {
-      msg_type: 'text',
-      content: {
-        text: '🧪 Webhook连接测试 - ' + new Date().toLocaleString('zh-CN')
-      }
-    }, {
-      timeout: 10000
+    // 获取访问令牌
+    const tokenResponse = await axios.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+      app_id: appId,
+      app_secret: appSecret,
     });
     
-    console.log('   ✅ Webhook测试成功');
-    console.log('   📄 响应:', response.data);
+    const token = tokenResponse.data.tenant_access_token;
+    
+    // 获取群组列表
+    const chatResponse = await axios.get('https://open.feishu.cn/open-apis/im/v1/chats', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      params: {
+        page_size: 10
+      }
+    });
+    
+    if (chatResponse.data.data.items?.length > 0) {
+      const firstChatId = chatResponse.data.data.items[0].chat_id;
+      
+      // 发送测试消息
+      const messageResponse = await axios.post('https://open.feishu.cn/open-apis/im/v1/messages', {
+        receive_id: firstChatId,
+        receive_id_type: 'chat_id',
+        msg_type: 'text',
+        content: JSON.stringify({ 
+          text: '🧪 应用机器人直接消息测试 - ' + new Date().toLocaleString('zh-CN') 
+        })
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('   ✅ 直接消息发送成功');
+      console.log('   📄 消息ID:', messageResponse.data.data?.message_id);
+    } else {
+      console.log('   ⚠️  没有找到群组，无法发送测试消息');
+    }
+    
   } catch (error) {
-    console.log('   ❌ Webhook测试失败:', error.message);
+    console.log('   ❌ 直接消息测试失败:', error.message);
     if (error.response?.data) {
       console.log('   📄 错误详情:', JSON.stringify(error.response.data, null, 2));
     }
@@ -111,8 +142,8 @@ async function testWebhookUrl() {
 async function main() {
   await testFeishuAuth();
   
-  console.log('\n3. Webhook URL 测试:');
-  await testWebhookUrl();
+  console.log('\n3. 直接消息测试:');
+  await testDirectMessage();
   
   console.log('\n4. 建议修复步骤:');
   const appId = process.env.FEISHU_APP_ID;

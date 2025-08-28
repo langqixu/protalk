@@ -38,7 +38,6 @@ export interface FeishuConfig {
   // 基础配置
   appId: string;
   appSecret: string;
-  webhookUrl: string;
   verificationToken?: string;
   encryptKey?: string;
   

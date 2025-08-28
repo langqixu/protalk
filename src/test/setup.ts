@@ -9,7 +9,8 @@ process.env['APP_STORE_KEY_ID'] = 'test-key-id';
 process.env['APP_STORE_PRIVATE_KEY'] = 'test-private-key';
 process.env['SUPABASE_URL'] = 'https://test.supabase.co';
 process.env['SUPABASE_ANON_KEY'] = 'test-anon-key';
-process.env['FEISHU_WEBHOOK_URL'] = 'https://test.feishu.cn/webhook';
+process.env['FEISHU_APP_ID'] = 'test-app-id';
+process.env['FEISHU_APP_SECRET'] = 'test-app-secret';
 process.env['PORT'] = '3000';
 
 // 全局测试超时设置

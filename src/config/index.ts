@@ -38,8 +38,7 @@ function loadEnvConfig(): EnvConfig {
     'APP_STORE_KEY_ID',
     'APP_STORE_PRIVATE_KEY',
     'SUPABASE_URL',
-    'SUPABASE_ANON_KEY',
-    'FEISHU_WEBHOOK_URL'
+    'SUPABASE_ANON_KEY'
   ];
 
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -59,7 +58,6 @@ function loadEnvConfig(): EnvConfig {
       anonKey: process.env['SUPABASE_ANON_KEY']!
     },
     feishu: {
-      webhookUrl: process.env['FEISHU_WEBHOOK_URL']!,
       mode: (process.env['FEISHU_MODE'] as 'webhook' | 'eventsource') || 'webhook',
       ...(process.env['FEISHU_APP_ID'] && { appId: process.env['FEISHU_APP_ID'] }),
       ...(process.env['FEISHU_APP_SECRET'] && { appSecret: process.env['FEISHU_APP_SECRET'] }),
