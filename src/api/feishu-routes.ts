@@ -911,6 +911,13 @@ router.post('/events', async (req: Request, res: Response) => {
     if (type === 'event_callback') {
       process.nextTick(async () => {
         try {
+          logger.info('🔧 DEBUG: 处理事件回调', {
+            eventType: event?.event_type,
+            action: event?.action,
+            hasAction: !!event?.action,
+            hasValue: !!event?.action?.value
+          });
+          
           // 特殊处理卡片交互事件
           if (event?.event_type === 'card.action.trigger') {
             await handleCardActionEventV1(event);
@@ -967,7 +974,9 @@ async function handleCardActionEventV1(event: any): Promise<void> {
       message_id,
       trigger_id,
       eventType: event.event_type,
-      hasFormValue: !!form_value
+      hasFormValue: !!form_value,
+      actionValue: action?.value,
+      fullEvent: JSON.stringify(event).substring(0, 500) + '...'
     });
 
     if (action && action.value) {
