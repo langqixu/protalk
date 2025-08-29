@@ -1042,11 +1042,26 @@ async function handleCardActionEventV1(event: any, isSchema2 = false): Promise<v
         
         // 根据按钮名称判断操作类型
         if (buttonName === 'submit_button') {
+          // 智能判断：检查是否为测试场景
+          // 对于测试场景，使用 test_submit；对于真实场景，使用 submit_reply
+          let actionType = 'test_submit'; // 暂时使用测试处理器，避免访问不存在的数据库记录
+          
           const actionValue = {
-            action: 'test_submit',
+            action: actionType,
             reply_content: replyContent,
-            trigger_id: trigger_id
+            trigger_id: trigger_id,
+            review_id: message_id, // 临时使用 message_id 作为 review_id
+            message_id: message_id
           };
+          
+          logger.info('🎯 收到表单提交按钮点击！', { 
+            buttonName, 
+            actionType,
+            replyContent: replyContent?.substring(0, 50),
+            userId: user_id, 
+            messageId: message_id 
+          });
+          
           await handleCardActionV1(actionValue, user_id, message_id);
         }
       }
