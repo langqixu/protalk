@@ -773,10 +773,10 @@ export function buildReviewCardV2(reviewData: {
   card.elements.push({
     tag: 'div',
     fields: [
-      { is_short: true, text: { tag: 'lark_md', content: `📅 ${dateStr}` } },
-      { is_short: true, text: { tag: 'lark_md', content: `👤 ${reviewData.author}` } },
-      { is_short: true, text: { tag: 'lark_md', content: `📱 ${reviewData.version || '未知版本'}` } },
-      { is_short: true, text: { tag: 'lark_md', content: countryDisplay } }
+      { is_short: true, text: { tag: 'lark_md', content: `<font color='grey'>📅 ${dateStr}</font>` } },
+      { is_short: true, text: { tag: 'lark_md', content: `<font color='grey'>👤 ${reviewData.author}</font>` } },
+      { is_short: true, text: { tag: 'lark_md', content: `<font color='grey'>📱 ${reviewData.version || '未知版本'}</font>` } },
+      { is_short: true, text: { tag: 'lark_md', content: `<font color='grey'>${countryDisplay}</font>` } }
     ]
   });
 
@@ -787,11 +787,6 @@ export function buildReviewCardV2(reviewData: {
   if (finalCardState === 'replied') {
     // 已回复状态：显示回复内容 + 编辑按钮（使用column_set布局）
     const replyContent = reviewData.reply_content || reviewData.developer_response?.body || '暂无回复内容';
-    
-    card.elements.push({
-      tag: 'div',
-      text: { tag: 'lark_md', content: `💬 **开发者回复**` }
-    });
     
     card.elements.push({
       tag: 'column_set',
@@ -806,7 +801,7 @@ export function buildReviewCardV2(reviewData: {
           elements: [
             {
               tag: 'div',
-              text: { tag: 'plain_text', content: replyContent }
+              text: { tag: 'lark_md', content: `💬 ${replyContent}` }
             }
           ]
         },
@@ -844,82 +839,55 @@ export function buildReviewCardV2(reviewData: {
       name: 'edit_reply_form',
       elements: [
         {
+          tag: 'input',
+          name: 'reply_content',
+          placeholder: { tag: 'plain_text', content: '编辑您的回复...' },
+          default_value: currentReply,
+          is_multiline: true,
+          max_length: 1000,
+          margin: '0px 0px 8px 0px'
+        },
+        {
           tag: 'column_set',
           horizontal_spacing: '8px',
-          horizontal_align: 'left',
+          horizontal_align: 'right',
           columns: [
             {
               tag: 'column',
-              width: 'weighted',
-              weight: 5,
-              vertical_align: 'top',
+              width: 'auto',
               elements: [
                 {
-                  tag: 'input',
-                  name: 'reply_content',
-                  placeholder: { tag: 'plain_text', content: '编辑您的回复...' },
-                  default_value: currentReply,
-                  is_multiline: true,
-                  max_length: 1000,
-                  margin: '0px 0px 0px 0px'
+                  tag: 'button',
+                  text: { tag: 'plain_text', content: '更新' },
+                  type: 'primary',
+                  size: 'medium',
+                  action_type: 'request',
+                  form_action_type: 'submit',
+                  name: 'update_button'
                 }
               ]
             },
             {
               tag: 'column',
-              width: 'weighted',
-              weight: 1,
-              vertical_align: 'top',
+              width: 'auto',
               elements: [
                 {
-                  tag: 'column_set',
-                  horizontal_spacing: '4px',
-                  columns: [
-                    {
-                      tag: 'column',
-                      width: 'weighted',
-                      weight: 1,
-                      elements: [
-                        {
-                          tag: 'button',
-                          text: { tag: 'plain_text', content: '更新' },
-                          type: 'primary',
-                          width: 'fill',
-                          size: 'small',
-                          action_type: 'request',
-                          form_action_type: 'submit',
-                          name: 'update_button'
-                        }
-                      ]
-                    },
-                    {
-                      tag: 'column',
-                      width: 'weighted',
-                      weight: 1,
-                      elements: [
-                        {
-                          tag: 'button',
-                          text: { tag: 'plain_text', content: '取消' },
-                          type: 'default',
-                          width: 'fill',
-                          size: 'small',
-                          action_type: 'request',
-                          name: 'cancel_button',
-                          value: {
-                            action: 'cancel_edit',
-                            review_id: reviewData.id,
-                            app_name: reviewData.app_name,
-                            author: reviewData.author
-                          }
-                        }
-                      ]
-                    }
-                  ]
+                  tag: 'button',
+                  text: { tag: 'plain_text', content: '取消' },
+                  type: 'default',
+                  size: 'medium',
+                  action_type: 'request',
+                  name: 'cancel_button',
+                  value: {
+                    action: 'cancel_edit',
+                    review_id: reviewData.id,
+                    app_name: reviewData.app_name,
+                    author: reviewData.author
+                  }
                 }
               ]
             }
-          ],
-          margin: '0px 0px 0px 0px'
+          ]
         }
       ],
       direction: 'vertical',
