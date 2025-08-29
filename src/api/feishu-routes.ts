@@ -470,21 +470,24 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
         break;
       
       case 'review':
-        // 创建模拟评论数据
+        // 创建模拟评论数据（使用正确的 AppReview 字段名）
         const mockReview = {
-          id: 'test_review_' + Date.now(),
-          app_name: 'Protalk Demo App',
-          app_id: '1234567890',
-          title: '这个应用真的很棒！',
-          content: '我已经使用这个应用几个月了，它真的改变了我的工作流程。界面设计很直观，功能也很完善。强烈推荐给所有需要类似功能的用户！',
+          reviewId: 'test_review_' + Date.now(),
+          appId: '1234567890',
           rating: 5,
-          author: '满意用户123',
-          store_type: 'ios' as const,
-          version: '2.1.0',
-          date: new Date().toISOString(),
-          country: '中国',
-          verified_purchase: true,
-          helpful_count: 8
+          title: '这个应用真的很棒！',
+          body: '我已经使用这个应用几个月了，它真的改变了我的工作流程。界面设计很直观，功能也很完善。强烈推荐给所有需要类似功能的用户！',
+          reviewerNickname: '满意用户123',
+          createdDate: new Date(),
+          isEdited: false,
+          territoryCode: 'CN',
+          responseBody: null,
+          responseDate: null,
+          isPushed: false,
+          pushType: 'new' as const,
+          firstSyncAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
         };
         
         cardContent = RichTextFactory.createReviewMessage(mockReview);

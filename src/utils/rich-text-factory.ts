@@ -65,25 +65,22 @@ export class RichTextFactory {
    */
   static createReviewMessage(review: AppReview, _compact: boolean = false): FeishuCardV2 {
     try {
-      // 简化的评论卡片
-      const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
+      // 使用修复后的 buildReviewCardV2 函数
+      const { buildReviewCardV2 } = require('./feishu-card-v2-builder');
       
-      return {
-        config: { wide_screen_mode: true },
-        header: {
-          title: { tag: 'plain_text', content: '📱 App Store 评论' },
-          template: 'blue'
-        },
-        elements: [
-          {
-            tag: 'div',
-            text: {
-              tag: 'lark_md',
-              content: `**评分**: ${stars} ${review.rating}/5\n**用户**: ${review.reviewerNickname || '匿名'}\n**内容**: ${review.body || '无内容'}`
-            }
-          }
-        ]
-      } as FeishuCardV2;
+      // 转换数据格式以匹配 buildReviewCardV2 的期望格式
+      const reviewData = {
+        id: review.reviewId,
+        app_name: '测试应用',  // 临时固定值，实际使用时应从配置或其他地方获取
+        rating: review.rating,
+        title: review.title,
+        content: review.body || '',
+        author: review.reviewerNickname,
+        date: review.createdDate.toISOString(),
+        store_type: 'ios'
+      };
+      
+      return buildReviewCardV2(reviewData);
     } catch (error) {
       logger.error('创建评论卡片失败', { 
         error: error instanceof Error ? error.message : error,
