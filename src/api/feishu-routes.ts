@@ -916,23 +916,29 @@ router.post('/events', async (req: Request, res: Response) => {
       eventType: event?.event_type
     });
 
-    // 异步处理事件
-    if (type === 'event_callback') {
+    // 异步处理事件 - 兼容新旧格式
+    if (type === 'event_callback' || req.body.schema === '2.0') {
       process.nextTick(async () => {
         try {
+          // 兼容新版 schema 2.0 格式和旧版格式
+          const eventData = req.body.schema === '2.0' ? req.body.event : event;
+          const eventType = req.body.schema === '2.0' ? req.body.header?.event_type : event?.event_type;
+          
           logger.info('🔧 DEBUG: 处理事件回调', {
-            eventType: event?.event_type,
-            action: event?.action,
-            hasAction: !!event?.action,
-            hasValue: !!event?.action?.value
+            schema: req.body.schema || '1.0',
+            eventType: eventType,
+            action: eventData?.action,
+            hasAction: !!eventData?.action,
+            hasValue: !!eventData?.action?.value,
+            hasContext: !!eventData?.context
           });
           
           // 特殊处理卡片交互事件（兼容新旧版本）
-          if (event?.event_type === 'card.action.trigger' || event?.event_type === 'card.action.trigger_v1') {
-            await handleCardActionEventV1(event);
-          } else if (event?.event_type === 'card.form.submit') {
+          if (eventType === 'card.action.trigger' || eventType === 'card.action.trigger_v1') {
+            await handleCardActionEventV1(eventData, req.body.schema === '2.0');
+          } else if (eventType === 'card.form.submit') {
             // 处理模态框表单提交事件
-            await handleModalSubmitEvent(event);
+            await handleModalSubmitEvent(eventData);
           } else {
             // 其他事件交给服务处理
             await feishuService!.handleFeishuEvent(req.body);
@@ -971,46 +977,86 @@ router.post('/events', async (req: Request, res: Response) => {
 });
 
 /**
- * 处理卡片交互事件 (v1) - 支持 form 表单容器
+ * 处理卡片交互事件 (v1) - 支持 form 表单容器和新版 schema 2.0
  */
-async function handleCardActionEventV1(event: any): Promise<void> {
+async function handleCardActionEventV1(event: any, isSchema2 = false): Promise<void> {
   try {
-    const { action, user_id, message_id, trigger_id, form_value } = event;
+    // 兼容新版 schema 2.0 和旧版格式
+    let action, user_id, message_id, trigger_id, form_value;
+    
+    if (isSchema2) {
+      // Schema 2.0 格式: 从 context 中获取信息
+      action = event.action;
+      user_id = event.operator?.open_id;
+      message_id = event.context?.open_message_id;
+      trigger_id = event.trigger_id;
+      form_value = event.action?.form_value;
+    } else {
+      // 旧版格式
+      ({ action, user_id, message_id, trigger_id, form_value } = event);
+    }
     
     logger.info('收到卡片交互事件 (v1)', { 
       action, 
       user_id, 
       message_id,
       trigger_id,
+      isSchema2,
       eventType: event.event_type,
       hasFormValue: !!form_value,
       actionValue: action?.value,
+      actionTag: action?.tag,
       fullEvent: JSON.stringify(event).substring(0, 500) + '...'
     });
 
-    if (action && action.value) {
-      // 从飞书官方 form 表单容器中获取用户输入
-      const replyContent = form_value?.reply_content || action.form_value?.reply_content;
-      
-      // 构建完整的action值，包含用户输入
-      const actionValue = {
-        ...action.value,
-        reply_content: replyContent,
-        trigger_id: trigger_id // 添加 trigger_id 用于模态框
-      };
-      
-      logger.debug('解析的表单数据', {
-        replyContent: replyContent?.substring(0, 50) + (replyContent?.length > 50 ? '...' : ''),
-        actionType: actionValue.action
-      });
-      
-      await handleCardActionV1(actionValue, user_id, message_id);
+    if (action) {
+      // 处理不同类型的交互
+      if (action.value) {
+        // 标准按钮点击（有 value 字段）
+        const replyContent = form_value?.reply_content || action.form_value?.reply_content;
+        
+        const actionValue = {
+          ...action.value,
+          reply_content: replyContent,
+          trigger_id: trigger_id
+        };
+        
+        logger.debug('解析的表单数据', {
+          replyContent: replyContent?.substring(0, 50) + (replyContent?.length > 50 ? '...' : ''),
+          actionType: actionValue.action,
+          actionTag: action.tag
+        });
+        
+        await handleCardActionV1(actionValue, user_id, message_id);
+      } else if (action.tag === 'button' && action.form_value) {
+        // 表单提交按钮（无 value 字段，但有 form_value）
+        const replyContent = action.form_value?.reply_content;
+        const buttonName = action.name;
+        
+        logger.info('🎯 收到表单提交按钮点击！', { 
+          buttonName, 
+          replyContent: replyContent?.substring(0, 50),
+          userId: user_id, 
+          messageId: message_id 
+        });
+        
+        // 根据按钮名称判断操作类型
+        if (buttonName === 'submit_button') {
+          const actionValue = {
+            action: 'test_submit',
+            reply_content: replyContent,
+            trigger_id: trigger_id
+          };
+          await handleCardActionV1(actionValue, user_id, message_id);
+        }
+      }
     }
     
   } catch (error) {
     logger.error('处理卡片交互事件失败 (v1)', {
       error: error instanceof Error ? error.message : error,
-      event
+      event,
+      isSchema2
     });
   }
 }
