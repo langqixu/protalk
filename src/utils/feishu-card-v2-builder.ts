@@ -705,208 +705,131 @@ export function buildReviewCardV2(reviewData: {
 }): FeishuCardV2 {
   const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
   const emptyStars = '☆'.repeat(5 - Math.max(0, Math.min(5, reviewData.rating || 0)));
-  const storeIcon = reviewData.store_type === 'ios' ? '📱' : '🤖';
   
-  // 🎨 智能颜色主题和情感表达
-  let template: CardHeader['template'] = 'blue';
-  let ratingEmoji = '😐';
-  
-  if (reviewData.rating >= 4) {
-    template = 'green';
-    ratingEmoji = '😊';
-  } else if (reviewData.rating >= 3) {
-    template = 'yellow';
-    ratingEmoji = '🙂';
-  } else {
-    template = 'red';
-    ratingEmoji = '😟';
-  }
-
-  const builder = createCardBuilder()
-    .setConfig({ 
-      wide_screen_mode: true, 
-      enable_forward: true 
-    })
-    .setHeader({
-      title: { 
-        tag: 'plain_text', 
-        content: `${storeIcon} ${reviewData.app_name} - 新评论通知` 
-      },
-      template
-    });
-
-  // 🌟 第一优先级：评分（最显眼，使用大字体和表情）
-  builder.addDiv(`## ${ratingEmoji} ${stars}${emptyStars} (${reviewData.rating}/5)`);
-
-  // 📝 第二优先级：评论标题（如果有，使用大字体突出显示）
-  if (reviewData.title && reviewData.title.trim()) {
-    builder.addDiv(`### 📝 ${reviewData.title}`);
-  }
-
-  // 💬 第三优先级：评论正文（主要内容，突出显示）
-  if (reviewData.content && reviewData.content.trim()) {
-    // 先添加一个标识，然后使用note组件突出显示内容
-    builder.addDiv(''); // 空行分隔
-    builder.addNote([
-      {
-        type: 'text',
-        content: reviewData.content
-      }
-    ]);
-    builder.addDiv(''); // 空行分隔
-  } else {
-    builder.addDiv('*仅评分，无文字评论*');
-  }
-
-  // 🔄 开发者回复区域（如果有）
-  if (reviewData.developer_response && reviewData.developer_response.body) {
-    builder.addDiv(`**🔄 开发者回复**: ${reviewData.developer_response.body}`);
-  }
-
-  // 📊 第四优先级：Meta信息（小字体，灰色调）
-  const metaInfo = [];
-  metaInfo.push(`👤 ${reviewData.author || '匿名用户'}`);
-  metaInfo.push(`📅 ${new Date(reviewData.date).toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })}`);
-  
-  // 添加版本号、地区等信息（如果有）
-  if (reviewData.version) metaInfo.push(`📱 版本 ${reviewData.version}`);
-  if (reviewData.country) metaInfo.push(`${getCountryFlag(reviewData.country)} ${reviewData.country}`);
-  if (reviewData.helpful_count && reviewData.helpful_count > 0) {
-    metaInfo.push(`👍 ${reviewData.helpful_count} 人觉得有帮助`);
-  }
-
-  // 📊 Meta信息用小字体显示 (使用addDiv方法)
-  builder.addDiv(metaInfo.join(' • '));
-
-  // 分隔线
-  builder.addHr();
-
-  // 🎯 动态交互区域 - 根据卡片状态显示不同内容
-  // 基于 response_body 动态判断状态，而不使用存储的 card_state
+  // 动态确定卡片状态
   const hasReply = reviewData.developer_response && reviewData.developer_response.body;
-  const cardState = reviewData.card_state || (hasReply ? 'replied' : 'initial');
+  const cardState = hasReply ? 'replied' : 'initial';
   
-  if (cardState === 'replying') {
-    // 🔸 回复输入状态 - 使用飞书官方 form 表单容器
-    builder.addDiv('💬 **回复此评论**');
+  logger.debug('构建评论卡片V2（新版本）', { 
+    reviewId: reviewData.id,
+    cardState,
+    hasReply
+  });
+
+  // 构建基础卡片结构
+  const card: FeishuCardV2 = {
+    config: { 
+      wide_screen_mode: true,
+      update_multi: true 
+    },
+    header: {
+      title: { tag: 'plain_text', content: `${reviewData.app_name} - 新评论通知` },
+      template: 'red'
+    },
+    elements: []
+  };
+
+  // 添加评分和用户信息
+  card.elements.push({
+    tag: 'div',
+    text: { tag: 'lark_md', content: `${stars}${emptyStars} (${reviewData.rating}/5)` },
+    fields: [
+      { is_short: false, text: { tag: 'lark_md', content: `👤 ${reviewData.author}` } }
+    ]
+  });
+
+  // 添加评论内容
+  card.elements.push({
+    tag: 'div',
+    text: { tag: 'lark_md', content: `**${reviewData.title || '此处为评论标题'}**\n${reviewData.content}` }
+  });
+
+  // 添加元信息
+  const dateStr = new Date(reviewData.date).toLocaleString('zh-CN');
+  const countryDisplay = `🇺🇸 ${reviewData.country || 'US'}`;
+  
+  card.elements.push({
+    tag: 'div',
+    fields: [
+      { is_short: true, text: { tag: 'lark_md', content: `📅 ${dateStr}` } },
+      { is_short: true, text: { tag: 'lark_md', content: `📱 ${reviewData.version || '未知版本'}` } },
+      { is_short: true, text: { tag: 'lark_md', content: countryDisplay } }
+    ]
+  });
+
+  // 添加分隔线
+  card.elements.push({ tag: 'hr' });
+
+  // 根据状态添加不同的交互元素
+  if (cardState === 'replied') {
+    // 已回复状态：显示回复内容 + 编辑按钮
+    const replyContent = reviewData.developer_response?.body || '暂无回复内容';
     
-    // 使用 form 表单容器包装输入框和按钮
-    builder.addForm('reply_form', [
-      // 输入框元素
-      {
-        tag: 'input',
-        name: 'reply_content',
-        placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
-        required: true,
-        max_length: 1000,
-        width: 'fill'
-      } as InputElement
-    ], {
-      submitButton: {
-        text: '📤 提交回复',
-        type: 'primary',
-        value: {
-          action: 'submit_reply',
-          review_id: reviewData.id,
-          app_name: reviewData.app_name,
-          author: reviewData.author
-        }
-      },
-      resetButton: {
-        text: '❌ 取消',
-        value: {
-          action: 'cancel_reply',
-          review_id: reviewData.id
-        }
-      }
+    card.elements.push({
+      tag: 'div',
+      text: { tag: 'lark_md', content: `💬 **开发者回复**\n${replyContent}` }
     });
     
-  } else if (cardState === 'replied') {
-    // 🔸 已回复状态
-    builder.addDiv('💬 **回复功能**');
-    
-    // 🔧 修复：已回复状态使用操作按钮组（仅保留编辑功能）
-    builder.addActionGroup([
-      {
-        text: '✏️ 编辑回复',
-        type: 'primary',
-        actionType: 'request',
-        value: {
-          action: 'edit_reply',
-          review_id: reviewData.id,
-          app_name: reviewData.app_name,
-          author: reviewData.author
+    card.elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '编辑回复' },
+          type: 'primary',
+          action_type: 'request',
+          value: {
+            action: 'edit_reply',
+            review_id: reviewData.id,
+            app_name: reviewData.app_name,
+            author: reviewData.author
+          }
         }
-      }
-    ]);
-    
-  } else if (cardState === 'editing_reply') {
-    // 🔸 编辑回复状态 - 使用飞书官方 form 表单容器
-    builder.addDiv('✏️ **编辑回复内容**');
-    
-    // 预填充已有回复内容的输入框
-    const existingReply = reviewData.developer_response?.body || '';
-    
-    // 使用 form 表单容器包装输入框和按钮
-    builder.addForm('edit_reply_form', [
-      // 输入框元素，预填充现有回复
-      {
-        tag: 'input',
-        name: 'reply_content',
-        placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
-        required: true,
-        max_length: 1000,
-        width: 'fill',
-        default_value: existingReply
-      } as InputElement
-    ], {
-      submitButton: {
-        text: '📤 更新回复',
-        type: 'primary',
-        value: {
-          action: 'update_reply',
-          review_id: reviewData.id,
-          app_name: reviewData.app_name,
-          author: reviewData.author
-        }
-      },
-      resetButton: {
-        text: '❌ 取消',
-        value: {
-          action: 'cancel_edit',
-          review_id: reviewData.id
-        }
-      }
+      ]
     });
     
   } else {
-    // 🔸 初始状态 - 显示回复按钮（点击打开简洁输入对话框）
-    builder.addDiv('💬 **开发者回复**');
-    
-    builder.addActionGroup([
-      {
-        text: '💬 快速回复',
-        type: 'primary',
-        actionType: 'request',
-        value: {
-          action: 'quick_reply',
-          review_id: reviewData.id,
-          app_name: reviewData.app_name,
-          author: reviewData.author
+    // 初始状态：显示输入框 + 提交按钮（参考官方示例的表单结构）
+    card.elements.push({
+      tag: 'form',
+      name: 'reply_form',
+      elements: [
+        {
+          tag: 'div',
+          text: { tag: 'lark_md', content: '💬 **开发者回复**' }
+        },
+        {
+          tag: 'input',
+          name: 'reply_content',
+          placeholder: { tag: 'plain_text', content: '回复用户...' },
+          required: true,
+          max_length: 1000,
+          width: 'fill'
+        },
+        {
+          tag: 'action',
+          actions: [
+            {
+              tag: 'button',
+              text: { tag: 'plain_text', content: '提交回复' },
+              type: 'primary',
+              action_type: 'request',
+              form_action_type: 'submit',
+              value: {
+                action: 'submit_reply',
+                review_id: reviewData.id,
+                app_name: reviewData.app_name,
+                author: reviewData.author
+              }
+            }
+          ]
         }
-      }
-    ]);
+      ]
+    });
   }
 
-  return builder.build();
+  return card;
 }
-
 /**
  * 创建确认对话卡片
  */

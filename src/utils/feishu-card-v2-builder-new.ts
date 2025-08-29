@@ -3,7 +3,7 @@
  */
 
 import logger from './logger';
-import { FeishuCardV2, CardHeader } from './feishu-card-v2-builder';
+import { FeishuCardV2 } from './feishu-card-v2-builder';
 
 /**
  * 获取国家旗帜emoji

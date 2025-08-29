@@ -11,7 +11,7 @@ import { AppReview } from '../types';
 //   createCompactReviewCard 
 // } from './review-card-templates';
 import logger from './logger';
-import { buildReviewCardV2New } from './feishu-card-v2-builder-new';
+import { buildReviewCardV2 } from './feishu-card-v2-builder';
 
 // ================================
 // 富文本消息类型定义
@@ -110,7 +110,7 @@ export class RichTextFactory {
           } : undefined
         };
       
-      return buildReviewCardV2New(reviewData);
+      return buildReviewCardV2(reviewData);
     } catch (error) {
       logger.error('创建评论卡片失败', { 
         error: error instanceof Error ? error.message : error,
