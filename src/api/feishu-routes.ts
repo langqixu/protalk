@@ -52,7 +52,7 @@ function handleError(res: Response, error: unknown, operation: string) {
  * 获取服务状态 / 紧急修复
  * GET /feishu/status?emergency=mark-historical&confirm=true
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', async (req: Request, res: Response): Promise<void> => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
