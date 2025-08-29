@@ -49,13 +49,75 @@ function handleError(res: Response, error: unknown, operation: string) {
 // ================================
 
 /**
- * 获取服务状态
- * GET /feishu/status
+ * 获取服务状态 / 紧急修复
+ * GET /feishu/status?emergency=mark-historical&confirm=true
  */
-router.get('/status', (_req: Request, res: Response) => {
+router.get('/status', async (req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
+    // 🚨 紧急修复逻辑
+    if (req.query.emergency === 'mark-historical') {
+      logger.info('🚨 通过status端点执行紧急修复');
+      
+      const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+      const dbManager = new SupabaseManager();
+      
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24小时前
+      
+      if (req.query.confirm === 'true') {
+        // 实际执行
+        const { error: updateError } = await dbManager.client
+          .from('app_reviews')
+          .update({ 
+            is_pushed: true, 
+            push_type: 'emergency_historical_batch',
+            updated_at: new Date().toISOString()
+          })
+          .lt('created_date', cutoff.toISOString())
+          .or('is_pushed.is.null,is_pushed.eq.false');
+        
+        if (updateError) {
+          throw new Error(`紧急修复失败: ${updateError.message}`);
+        }
+        
+        logger.info('✅ 紧急修复完成：历史评论已标记为已推送');
+        
+        return res.json({
+          success: true,
+          emergency: 'completed',
+          message: '历史评论已批量标记为已推送',
+          cutoffDate: cutoff.toISOString()
+        });
+      } else {
+        // 预览模式
+        const { data: reviews, error: queryError } = await dbManager.client
+          .from('app_reviews')
+          .select('review_id, created_date, title')
+          .lt('created_date', cutoff.toISOString())
+          .or('is_pushed.is.null,is_pushed.eq.false')
+          .limit(10);
+        
+        if (queryError) {
+          throw new Error(`查询失败: ${queryError.message}`);
+        }
+        
+        return res.json({
+          success: true,
+          emergency: 'preview',
+          message: `发现 ${reviews.length} 条未推送的历史评论`,
+          cutoffDate: cutoff.toISOString(),
+          sampleReviews: reviews.slice(0, 5).map(r => ({
+            id: r.review_id.slice(0, 20) + '...',
+            date: r.created_date,
+            title: r.title?.slice(0, 30) + '...'
+          })),
+          instruction: '添加 &confirm=true 参数执行实际修复'
+        });
+      }
+    }
+
+    // 正常状态查询
     const status = feishuService!.getStatus();
     
     res.json({
