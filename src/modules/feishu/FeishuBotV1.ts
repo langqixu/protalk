@@ -266,7 +266,8 @@ export class FeishuBotV1 {
         {
           receive_id: chatId,
           msg_type: 'interactive',
-          content: JSON.stringify(cardData)
+          content: JSON.stringify(cardData),
+          update_multi: true  // 🔧 关键修复：允许群聊中的卡片交互
         }
       );
 
