@@ -710,7 +710,7 @@ export function buildReviewCardV2(reviewData: {
   const hasReply = reviewData.developer_response && reviewData.developer_response.body;
   const cardState = hasReply ? 'replied' : 'initial';
   
-  logger.debug('构建评论卡片V2（新版本）', { 
+  logger.debug('🚀 [v3 DESIGN] 构建新版评论卡片', { 
     reviewId: reviewData.id,
     cardState,
     hasReply
