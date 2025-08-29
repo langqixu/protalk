@@ -831,11 +831,12 @@ export function buildReviewCardV2(reviewData: {
     // 🔸 已回复状态
     builder.addDiv('💬 **回复功能**');
     
-    // 🔧 修复：使用表单容器包装按钮
-    builder.addForm('replied_action_form', [], {
-      submitButton: {
+    // 🔧 修复：已回复状态使用操作按钮组
+    builder.addActionGroup([
+      {
         text: '✏️ 编辑回复',
         type: 'primary',
+        actionType: 'request',
         value: {
           action: 'edit_reply',
           review_id: reviewData.id,
@@ -843,8 +844,10 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      resetButton: {
+      {
         text: '🚩 报告问题',
+        type: 'default',
+        actionType: 'request',
         value: {
           action: 'report_issue',
           review_id: reviewData.id,
@@ -852,7 +855,7 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       }
-    });
+    ]);
     
   } else if (cardState === 'editing_reply') {
     // 🔸 编辑回复状态 - 使用飞书官方 form 表单容器
@@ -897,11 +900,12 @@ export function buildReviewCardV2(reviewData: {
     // 🔸 初始状态 - 显示主要操作按钮
     builder.addDiv('💬 **回复功能**');
     
-    // 🔧 修复：使用表单容器包装按钮，确保回调事件正确触发
-    builder.addForm('action_form', [], {
-      submitButton: {
+    // 🔧 修复：初始状态使用简单的操作按钮组（不需要表单）
+    builder.addActionGroup([
+      {
         text: '💬 回复评论',
         type: 'primary',
+        actionType: 'request',
         value: {
           action: 'reply_review',
           review_id: reviewData.id,
@@ -909,8 +913,10 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      resetButton: {
+      {
         text: '🚩 报告问题',
+        type: 'default',
+        actionType: 'request',
         value: {
           action: 'report_issue',
           review_id: reviewData.id,
@@ -918,7 +924,7 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       }
-    });
+    ]);
   }
 
   return builder.build();
