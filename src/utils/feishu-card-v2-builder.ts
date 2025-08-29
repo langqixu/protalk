@@ -613,15 +613,17 @@ export function buildReviewCardV2(reviewData: {
     builder.addDiv(`### 📝 ${reviewData.title}`);
   }
 
-  // 💬 第三优先级：评论正文（主要内容，增大字体）
+  // 💬 第三优先级：评论正文（主要内容，突出显示）
   if (reviewData.content && reviewData.content.trim()) {
-    // 使用note组件突出显示评论内容，字体会自动较大
+    // 先添加一个标识，然后使用note组件突出显示内容
+    builder.addDiv(''); // 空行分隔
     builder.addNote([
       {
         type: 'text',
         content: reviewData.content
       }
     ]);
+    builder.addDiv(''); // 空行分隔
   } else {
     builder.addDiv('*仅评分，无文字评论*');
   }
@@ -658,17 +660,11 @@ export function buildReviewCardV2(reviewData: {
   // 🎯 交互区域：直接外露输入框 + 简化按钮
   builder.addDiv('💬 **回复评论**');
 
-  // 💬 输入框组件 - 按照飞书官方文档实现
-  builder.addInputElement({
-    tag: 'input',
-    name: 'reply_content',
+  // 💬 输入框组件 - 使用标准addInput方法
+  builder.addInput('reply_content', {
+    placeholder: '感谢您的反馈！我们会认真考虑您的建议...',
     required: true,
-    placeholder: {
-      tag: 'plain_text',
-      content: '感谢您的反馈！我们会认真考虑您的建议...'
-    },
-    max_length: 1000,
-    width: 'fill'
+    maxLength: 1000
   });
 
   // 🎨 简化的按钮组：只保留提交回复
