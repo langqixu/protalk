@@ -1164,6 +1164,26 @@ async function handleCardActionV1(
           await feishuService.updateCardMessage(messageId, confirmCard);
         }
         break;
+      case 'official_form_submit':
+        // 🧪 处理官方规范表单提交测试
+        logger.info('🎯 收到官方规范表单提交！', { actionValue, userId, messageId, reply_content });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 官方规范表单测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `官方规范表单提交成功！输入内容：${reply_content || '无内容'}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
       case 'test_submit':
         // 🧪 处理表单提交测试 - 模拟真实的评论回复流程
         logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
