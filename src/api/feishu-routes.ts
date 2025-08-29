@@ -1879,7 +1879,7 @@ router.post('/emergency/mark-historical-pushed', async (req: Request, res: Respo
 });
 
 // 🧪 极简按钮测试端点  
-router.post('/test/simple-button', async (req: Request, res: Response) => {
+router.post('/test/simple-button', async (_req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
