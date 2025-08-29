@@ -328,6 +328,14 @@ export class FeishuCardV2Builder {
   }
 
   /**
+   * 添加输入框元素 - 完整版本
+   */
+  addInputElement(inputConfig: any): this {
+    this.card.elements.push(inputConfig);
+    return this;
+  }
+
+  /**
    * 添加图片元素
    */
   addImage(
@@ -529,6 +537,28 @@ export function createInfoCard(
  * 创建评论卡片（v2版本）
  * 这是缺失的函数，用于构建带交互按钮的评论卡片
  */
+/**
+ * 获取国家/地区对应的国旗emoji
+ */
+function getCountryFlag(countryCode?: string): string {
+  if (!countryCode) return '🌍';
+  
+  const countryFlags: { [key: string]: string } = {
+    'US': '🇺🇸', 'CN': '🇨🇳', 'JP': '🇯🇵', 'KR': '🇰🇷',
+    'GB': '🇬🇧', 'DE': '🇩🇪', 'FR': '🇫🇷', 'IT': '🇮🇹',
+    'ES': '🇪🇸', 'RU': '🇷🇺', 'BR': '🇧🇷', 'IN': '🇮🇳',
+    'CA': '🇨🇦', 'AU': '🇦🇺', 'NL': '🇳🇱', 'SE': '🇸🇪',
+    'CH': '🇨🇭', 'AT': '🇦🇹', 'BE': '🇧🇪', 'DK': '🇩🇰',
+    'FI': '🇫🇮', 'NO': '🇳🇴', 'PL': '🇵🇱', 'CZ': '🇨🇿',
+    'HU': '🇭🇺', 'GR': '🇬🇷', 'PT': '🇵🇹', 'IE': '🇮🇪',
+    'MX': '🇲🇽', 'AR': '🇦🇷', 'CL': '🇨🇱', 'CO': '🇨🇴',
+    'TH': '🇹🇭', 'VN': '🇻🇳', 'ID': '🇮🇩', 'MY': '🇲🇾',
+    'SG': '🇸🇬', 'PH': '🇵🇭', 'HK': '🇭🇰', 'TW': '🇹🇼'
+  };
+  
+  return countryFlags[countryCode.toUpperCase()] || '🌍';
+}
+
 export function buildReviewCardV2(reviewData: {
   id: string;
   rating: number;
@@ -583,8 +613,9 @@ export function buildReviewCardV2(reviewData: {
     builder.addDiv(`### 📝 ${reviewData.title}`);
   }
 
-  // 💬 第三优先级：评论正文（主要内容，用突出样式）
+  // 💬 第三优先级：评论正文（主要内容，增大字体）
   if (reviewData.content && reviewData.content.trim()) {
+    // 使用note组件突出显示评论内容，字体会自动较大
     builder.addNote([
       {
         type: 'text',
@@ -613,11 +644,12 @@ export function buildReviewCardV2(reviewData: {
   
   // 添加版本号、地区等信息（如果有）
   if (reviewData.version) metaInfo.push(`📱 版本 ${reviewData.version}`);
-  if (reviewData.country) metaInfo.push(`🌍 ${reviewData.country}`);
+  if (reviewData.country) metaInfo.push(`${getCountryFlag(reviewData.country)} ${reviewData.country}`);
   if (reviewData.helpful_count && reviewData.helpful_count > 0) {
     metaInfo.push(`👍 ${reviewData.helpful_count} 人觉得有帮助`);
   }
 
+  // 📊 Meta信息用小字体显示 (使用addDiv方法)
   builder.addDiv(metaInfo.join(' • '));
 
   // 分隔线
@@ -626,11 +658,17 @@ export function buildReviewCardV2(reviewData: {
   // 🎯 交互区域：直接外露输入框 + 简化按钮
   builder.addDiv('💬 **回复评论**');
 
-  // 输入框直接可见
-  builder.addInput('reply_content', {
-    placeholder: '感谢您的反馈！我们会认真考虑您的建议...',
+  // 💬 输入框组件 - 按照飞书官方文档实现
+  builder.addInputElement({
+    tag: 'input',
+    name: 'reply_content',
     required: true,
-    maxLength: 1000
+    placeholder: {
+      tag: 'plain_text',
+      content: '感谢您的反馈！我们会认真考虑您的建议...'
+    },
+    max_length: 1000,
+    width: 'fill'
   });
 
   // 🎨 简化的按钮组：只保留提交回复
