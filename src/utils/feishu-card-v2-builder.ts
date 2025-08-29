@@ -788,7 +788,7 @@ export function buildReviewCardV2(reviewData: {
   // 根据状态添加不同的交互元素
   if (finalCardState === 'replied') {
     // 已回复状态：显示回复内容 + 编辑按钮
-    const replyContent = reviewData.developer_response?.body || '暂无回复内容';
+    const replyContent = reviewData.reply_content || reviewData.developer_response?.body || '暂无回复内容';
     
     card.elements.push({
       tag: 'div',
@@ -857,12 +857,6 @@ export function buildReviewCardV2(reviewData: {
                   size: 'medium',
                   action_type: 'request',
                   form_action_type: 'submit',
-                  value: {
-                    action: 'update_reply',
-                    review_id: reviewData.id,
-                    app_name: reviewData.app_name,
-                    author: reviewData.author
-                  },
                   name: 'update_button'
                 }
               ]
