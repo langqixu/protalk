@@ -904,6 +904,7 @@ export function buildReviewCardV2(reviewData: {
                           width: 'fill',
                           size: 'small',
                           action_type: 'request',
+                          name: 'cancel_button',
                           value: {
                             action: 'cancel_edit',
                             review_id: reviewData.id,
