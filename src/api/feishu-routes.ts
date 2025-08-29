@@ -1048,4 +1048,99 @@ async function handleRefreshV1(
   }
 }
 
+/**
+ * 部署验证接口
+ * POST /feishu/deployment/verify
+ * 推送最新5条评论来验证卡片功能
+ */
+router.post('/deployment/verify', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    // 导入部署验证服务
+    const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
+    
+    // 获取数据库和推送服务实例
+    const db = (global as any).databaseManager;
+    const pusher = feishuService;
+    
+    if (!db || !pusher) {
+      res.status(500).json({
+        success: false,
+        error: '服务未正确初始化'
+      });
+      return;
+    }
+
+    // 创建验证服务实例
+    const verificationService = new DeploymentVerificationService(db, pusher);
+    
+    logger.info('开始执行部署验证', { 
+      timestamp: new Date().toISOString(),
+      requestIP: req.ip 
+    });
+
+    // 执行验证流程
+    const result = await verificationService.runDeploymentVerification();
+
+    res.json({
+      success: true,
+      message: '部署验证完成',
+      data: result
+    });
+
+  } catch (error) {
+    handleError(res, error, '部署验证失败');
+  }
+});
+
+/**
+ * 获取最新评论接口（仅用于验证）
+ * GET /feishu/deployment/latest-reviews
+ */
+router.get('/deployment/latest-reviews', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
+    
+    const db = (global as any).databaseManager;
+    
+    if (!db) {
+      res.status(500).json({
+        success: false,
+        error: '数据库服务未初始化'
+      });
+      return;
+    }
+
+    const verificationService = new DeploymentVerificationService(db, null as any);
+    const limit = parseInt(req.query['limit'] as string) || 5;
+    
+    const reviews = await verificationService.getLatestReviews(limit);
+
+    res.json({
+      success: true,
+      data: {
+        reviews: reviews.map((review: any) => ({
+          reviewId: review.reviewId,
+          appId: review.appId,
+          rating: review.rating,
+          title: review.title,
+          body: review.body?.substring(0, 100) + '...',
+          reviewerNickname: review.reviewerNickname,
+          reviewDate: review.createdDate,
+          isPushed: review.isPushed,
+          pushType: review.pushType
+        })),
+        count: reviews.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    handleError(res, error, '获取最新评论失败');
+  }
+});
+
 export default router;
