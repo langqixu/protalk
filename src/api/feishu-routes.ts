@@ -1147,23 +1147,41 @@ async function handleCardActionV1(
         }
         break;
       case 'test_submit':
-        // 🧪 处理表单提交测试
+        // 🧪 处理表单提交测试 - 模拟真实的评论回复流程
         logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
-        if (feishuService) {
-          const confirmCard = {
-            config: { wide_screen_mode: true },
-            header: {
-              title: { tag: 'plain_text', content: '✅ 表单提交测试成功' },
-              template: 'green'
+        if (feishuService && reply_content) {
+          // 构建回复后的评论卡片（保持原有结构，但显示为已回复状态）
+          const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
+          
+          // 模拟测试评论数据，状态更新为已回复
+          const reviewData = {
+            id: actionValue.review_id || 'test_review_001',
+            app_name: '潮汐 for iOS',
+            app_id: 'test_app',
+            title: '[测试] 用户评论标题',
+            content: '这是一条测试用户评论内容，用于验证回复功能是否正常工作。',
+            rating: 4,
+            author: '测试用户',
+            store_type: 'ios',
+            version: '1.0.0',
+            date: new Date().toISOString(),
+            country: 'CN',
+            developer_response: {
+              body: reply_content,
+              date: new Date().toISOString()
             },
-            elements: [
-              {
-                tag: 'div',
-                text: { tag: 'plain_text', content: `表单提交成功！输入内容：${reply_content || '无内容'}` }
-              }
-            ]
+            card_state: 'replied', // 重要：设置为已回复状态
+            message_id: messageId
           };
-          await feishuService.updateCardMessage(messageId, confirmCard);
+          
+          const updatedCard = buildReviewCardV2(reviewData);
+          await feishuService.updateCardMessage(messageId, updatedCard);
+          
+          logger.info('✅ 测试评论回复成功', { 
+            messageId, 
+            replyContent: reply_content.substring(0, 50),
+            cardState: 'replied'
+          });
         }
         break;
       case 'reply_review':
