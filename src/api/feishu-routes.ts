@@ -1878,33 +1878,29 @@ router.post('/emergency/mark-historical-pushed', async (req: Request, res: Respo
   }
 });
 
-// 🧪 极简按钮测试端点
+// 🧪 极简按钮测试端点  
 router.post('/test/simple-button', async (req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
     logger.info('🧪 发送极简按钮测试卡片');
 
+    // 最简单的卡片格式，符合飞书V2标准
     const simpleCard = {
-      config: { wide_screen_mode: true },
-      header: {
-        title: { tag: 'plain_text', content: '🧪 按钮测试卡片' },
-        template: 'blue'
-      },
       elements: [
         {
           tag: 'div',
-          text: { tag: 'plain_text', content: '这是一个按钮测试卡片，请点击下面的按钮测试交互功能。' }
+          text: { tag: 'plain_text', content: '🧪 测试按钮交互' }
         },
         {
           tag: 'action',
           actions: [
             {
               tag: 'button',
-              text: { tag: 'plain_text', content: '🎯 测试按钮' },
+              text: { tag: 'plain_text', content: '点击测试' },
               type: 'primary',
               action_type: 'request',
-              value: { a: 'ping', t: Date.now() }
+              value: { action: 'ping' }
             }
           ]
         }
