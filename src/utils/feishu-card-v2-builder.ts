@@ -225,14 +225,18 @@ export class FeishuCardV2Builder {
         ? { tag: 'plain_text', content: text }
         : text,
       type: options.type || 'default',
-      size: options.size || 'medium',
-      action_type: options.actionType || 'request'
+      size: options.size || 'medium'
     };
 
+    // 根据配置设置 action_type
     if (options.url) {
       button.url = options.url;
       button.action_type = 'link';
+    } else if (options.actionType) {
+      button.action_type = options.actionType;
     }
+    // 如果没有明确指定 actionType 且没有 url，则不设置 action_type
+    // 这样飞书会使用默认的 callback 行为
 
     if (options.value !== undefined) {
       button.value = options.value;
@@ -262,14 +266,29 @@ export class FeishuCardV2Builder {
     }>,
     layout: ActionElement['layout'] = 'flow'
   ): this {
-    const actionButtons: ButtonElement[] = buttons.map(btn => ({
-      tag: 'button',
-      text: { tag: 'plain_text', content: btn.text },
-      type: btn.type || 'default',
-      action_type: btn.actionType || 'request',
-      ...(btn.url && { url: btn.url, action_type: 'link' as const }),
-      ...(btn.value !== undefined && { value: btn.value })
-    }));
+    const actionButtons: ButtonElement[] = buttons.map(btn => {
+      const button: ButtonElement = {
+        tag: 'button',
+        text: { tag: 'plain_text', content: btn.text },
+        type: btn.type || 'default'
+      };
+
+      // 根据配置设置 action_type
+      if (btn.url) {
+        button.url = btn.url;
+        button.action_type = 'link';
+      } else if (btn.actionType) {
+        button.action_type = btn.actionType;
+      }
+      // 如果没有明确指定 actionType 且没有 url，则不设置 action_type
+      // 这样飞书会使用默认的 callback 行为
+
+      if (btn.value !== undefined) {
+        button.value = btn.value;
+      }
+
+      return button;
+    });
 
     this.card.elements.push({
       tag: 'action',
@@ -507,6 +526,83 @@ export function createInfoCard(
 }
 
 /**
+ * 创建评论卡片（v2版本）
+ * 这是缺失的函数，用于构建带交互按钮的评论卡片
+ */
+export function buildReviewCardV2(reviewData: {
+  id: string;
+  rating: number;
+  title?: string;
+  content: string;
+  author: string;
+  date: string;
+  app_name: string;
+  store_type?: string;
+  helpful_count?: number;
+  developer_response?: any;
+}): FeishuCardV2 {
+  const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
+  const storeIcon = reviewData.store_type === 'ios' ? '📱' : '🤖';
+  
+  // 选择颜色主题
+  let template: CardHeader['template'] = 'blue';
+  if (reviewData.rating >= 4) {
+    template = 'green';
+  } else if (reviewData.rating >= 3) {
+    template = 'yellow';
+  } else {
+    template = 'red';
+  }
+
+  const builder = createCardBuilder()
+    .setConfig({ 
+      wide_screen_mode: true, 
+      enable_forward: true 
+    })
+    .setHeader({
+      title: { 
+        tag: 'plain_text', 
+        content: `${storeIcon} ${reviewData.app_name} - 新评论通知` 
+      },
+      template
+    })
+    .addDiv(`**评分**: ${stars} (${reviewData.rating}/5)`)
+    .addDiv(`**用户**: ${reviewData.author || '匿名'}`)
+    .addDiv(`**时间**: ${new Date(reviewData.date).toLocaleString('zh-CN')}`)
+    .addDiv(`**内容**: ${reviewData.content || '无内容'}`);
+
+  // 如果有开发者回复，显示它
+  if (reviewData.developer_response && reviewData.developer_response.body) {
+    builder.addDiv(`**开发者回复**: ${reviewData.developer_response.body}`);
+  }
+
+  // 添加交互按钮 - 注意：这里不设置actionType，让飞书使用默认的回调行为
+  builder.addActionGroup([
+    {
+      text: '💬 回复评论',
+      type: 'primary',
+      // 不设置 actionType，使用默认回调行为
+      value: {
+        action: 'reply_review',
+        review_id: reviewData.id,
+        app_name: reviewData.app_name
+      }
+    },
+    {
+      text: '📊 查看详情',
+      type: 'default',
+      // 不设置 actionType，使用默认回调行为
+      value: {
+        action: 'view_details',
+        review_id: reviewData.id
+      }
+    }
+  ]);
+
+  return builder.build();
+}
+
+/**
  * 创建确认对话卡片
  */
 export function createConfirmCard(
@@ -532,10 +628,13 @@ export function createConfirmCard(
     .build();
 }
 
+// buildReviewCardV2 已经作为 export function 导出
+
 export default {
   FeishuCardV2Builder,
   createCardBuilder,
   createTextCard,
   createInfoCard,
-  createConfirmCard
+  createConfirmCard,
+  buildReviewCardV2
 };

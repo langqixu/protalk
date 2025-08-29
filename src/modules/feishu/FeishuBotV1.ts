@@ -270,9 +270,21 @@ export class FeishuBotV1 {
         }
       );
 
+      // 检查飞书响应状态
+      if (response.data.code !== 0) {
+        const errorMsg = `飞书API返回错误: code=${response.data.code}, msg=${response.data.msg}`;
+        logger.error('互动卡片消息发送失败', { 
+          chatId, 
+          code: response.data.code,
+          msg: response.data.msg,
+          error: errorMsg
+        });
+        throw new Error(errorMsg);
+      }
+
       logger.info('互动卡片消息发送成功', { 
         chatId, 
-        messageId: response.data.data.message_id 
+        messageId: response.data.data?.message_id 
       });
       
       return response.data.data;

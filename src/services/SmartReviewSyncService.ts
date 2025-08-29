@@ -262,9 +262,44 @@ export class SmartReviewSyncService {
       return;
     }
 
-    logger.info('📤 开始执行推送操作', { count: toPush.length });
+    // 频控保护：限制单次推送数量
+    const maxBatchSize = 10; // 每批最多10条，避免触发飞书频控
+    if (toPush.length > maxBatchSize) {
+      logger.warn('🚫 推送数量过多，分批处理', { 
+        total: toPush.length, 
+        batchSize: maxBatchSize 
+      });
+      
+      for (let i = 0; i < toPush.length; i += maxBatchSize) {
+        const batch = toPush.slice(i, i + maxBatchSize);
+        logger.info(`📤 处理第 ${Math.floor(i / maxBatchSize) + 1} 批推送`, { 
+          count: batch.length,
+          total: toPush.length 
+        });
+        
+        await this.executePushBatch(batch);
+        
+        // 批次间增加延迟
+        if (i + maxBatchSize < toPush.length) {
+          logger.info('⏱️ 批次间延迟，避免频控...');
+          await new Promise(resolve => setTimeout(resolve, 5000)); // 5秒延迟
+        }
+      }
+      return;
+    }
 
-    for (const { review, pushType } of toPush) {
+    logger.info('📤 开始执行推送操作', { count: toPush.length });
+    await this.executePushBatch(toPush);
+  }
+
+  /**
+   * 执行单批推送操作
+   */
+  private async executePushBatch(
+    batch: Array<{ review: AppReview; pushType: string }>
+  ): Promise<void> {
+
+    for (const { review, pushType } of batch) {
       try {
         // 直接使用AppReview
         const reviewData = review;
@@ -272,29 +307,37 @@ export class SmartReviewSyncService {
         // 映射推送类型
         const mappedPushType = this.mapPushType(pushType);
         
+        // 尝试推送到飞书
         await this.pusher.pushReviewUpdate(reviewData, mappedPushType);
         
-        // 🔑 关键修复：推送成功后更新isPushed状态
+        // 🔑 关键修复：只有推送成功（没有异常）才更新isPushed状态
         review.isPushed = true;
         review.pushType = pushType as 'new' | 'historical' | 'updated';
         await this.db.upsertAppReviews([review]);
         
         logger.info('📤 推送成功', {
           reviewId: review.reviewId,
-          // dataType 字段已移除，不再区分 review 和 rating_only
           pushType,
           mappedType: mappedPushType
         });
         
-        // 避免推送过快
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // 避免推送过快 - 增加延迟以应对飞书频控
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
       } catch (error) {
-        logger.error('📤 推送失败', {
+        // 🔑 关键修复：推送失败时不标记为已推送，等待下次重试
+        logger.error('📤 推送失败，等待下次重试', {
           reviewId: review.reviewId,
           pushType,
           error: error instanceof Error ? error.message : error
         });
+        
+        // 如果是频控错误，增加更长的延迟
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('frequency limit') || errorMessage.includes('rate limit')) {
+          logger.warn('🚫 触发频控，增加延迟时间', { reviewId: review.reviewId });
+          await new Promise(resolve => setTimeout(resolve, 10000)); // 10秒延迟
+        }
       }
     }
     
