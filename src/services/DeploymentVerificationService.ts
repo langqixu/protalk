@@ -24,7 +24,7 @@ export class DeploymentVerificationService {
       const { data, error } = await supabaseManager.client
         .from('app_reviews')
         .select('*')
-        .order('review_date', { ascending: false })
+        .order('created_date', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -38,8 +38,8 @@ export class DeploymentVerificationService {
         rating: row.rating,
         title: row.title,
         body: row.body,
-        reviewerNickname: row.nickname,
-        createdDate: new Date(row.review_date || row.created_at), // 使用 review_date 或 created_at
+        reviewerNickname: row.reviewer_nickname || row.nickname,
+        createdDate: new Date(row.created_date || row.created_at), // 使用 created_date 或 created_at
         isEdited: row.is_edited || false,
         territoryCode: row.territory || 'US',
         
