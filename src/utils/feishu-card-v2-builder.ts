@@ -886,31 +886,22 @@ export function buildReviewCardV2(reviewData: {
     });
     
   } else {
-    // 🔸 初始状态 - 直接显示回复输入框
+    // 🔸 初始状态 - 显示回复按钮（点击打开简洁输入对话框）
     builder.addDiv('💬 **开发者回复**');
     
-    // 直接显示回复输入框和提交按钮（使用正确的表单结构）
-    const inputElement: InputElement = {
-      tag: 'input',
-      name: 'reply_content',
-      placeholder: { tag: 'plain_text', content: '请输入您的回复内容...' },
-      required: true,
-      max_length: 1000,
-      width: 'fill'
-    };
-    
-    builder.addForm('reply_form', [inputElement], {
-      submitButton: {
-        text: '📤 提交回复',
+    builder.addActionGroup([
+      {
+        text: '💬 快速回复',
         type: 'primary',
+        actionType: 'request',
         value: {
-          action: 'submit_reply',
+          action: 'quick_reply',
           review_id: reviewData.id,
           app_name: reviewData.app_name,
           author: reviewData.author
         }
       }
-    });
+    ]);
   }
 
   return builder.build();
@@ -942,6 +933,53 @@ export function createConfirmCard(
     .build();
 }
 
+/**
+ * 创建简洁的回复模态对话框
+ */
+export function createQuickReplyModal(reviewData: {
+  review_id: string;
+  app_name: string;
+  author: string;
+}): any {
+  return {
+    type: 'modal',
+    title: {
+      tag: 'plain_text',
+      content: '💬 回复用户评论'
+    },
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**回复评论**\n应用：${reviewData.app_name}\n用户：${reviewData.author}\n\n请输入您的回复内容：`
+        }
+      },
+      {
+        tag: 'input',
+        name: 'reply_content',
+        placeholder: {
+          tag: 'plain_text',
+          content: '请输入回复内容...'
+        },
+        multiline: true,
+        max_length: 4000,
+        required: true
+      }
+    ],
+    submit: {
+      tag: 'plain_text',
+      content: '📤 提交回复'
+    },
+    cancel: {
+      tag: 'plain_text',
+      content: '取消'
+    },
+    submit_disabled_when_loading: true,
+    notify_on_cancel: false
+  };
+}
+
 
 
 // buildReviewCardV2 已经作为 export function 导出
@@ -952,5 +990,6 @@ export default {
   createTextCard,
   createInfoCard,
   createConfirmCard,
-  buildReviewCardV2
+  buildReviewCardV2,
+  createQuickReplyModal
 };

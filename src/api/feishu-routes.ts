@@ -1070,6 +1070,9 @@ async function handleCardActionV1(
       case 'cancel_edit':
         await handleCancelReply(review_id, messageId);
         break;
+      case 'quick_reply':
+        await handleQuickReply(actionValue, userId);
+        break;
 
       case 'view_details':
         await handleViewDetailsV1(actionValue, userId);
@@ -1497,6 +1500,45 @@ async function handleCancelReply(reviewId: string, messageId: string): Promise<v
     logger.error('处理取消回复失败', { 
       reviewId, 
       messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"快速回复"按钮点击 - 打开简洁的回复模态对话框
+ */
+async function handleQuickReply(actionValue: any, userId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    const { review_id, app_name, author, trigger_id } = actionValue;
+    
+    logger.info('处理快速回复交互', { review_id, app_name, author, userId });
+
+    // 创建简洁的回复模态对话框
+    const { createQuickReplyModal } = require('../utils/feishu-card-v2-builder');
+    const modalData = createQuickReplyModal({
+      review_id,
+      app_name,
+      author
+    });
+
+    // 打开模态对话框
+    if (trigger_id) {
+      await feishuService!.openModal(trigger_id, modalData);
+      logger.info('快速回复模态对话框打开成功', { review_id, userId });
+    } else {
+      logger.warn('缺少 trigger_id，无法打开模态对话框', { review_id, userId });
+    }
+
+  } catch (error) {
+    logger.error('处理快速回复失败', { 
+      actionValue,
+      userId, 
       error: error instanceof Error ? error.message : error 
     });
   }
