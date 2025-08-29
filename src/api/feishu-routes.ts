@@ -575,7 +575,8 @@ router.post('/card-actions', async (req: Request, res: Response) => {
 
     // 异步处理卡片交互
     if (action && action.value) {
-      // 从输入框中获取用户输入的回复内容
+      
+      // 从输入框中获取用户输入的回复内容（用于模态框提交）
       const replyContent = action.form_value?.reply_content || action.value.reply_content;
       
       // 构建完整的action值，包含用户输入
