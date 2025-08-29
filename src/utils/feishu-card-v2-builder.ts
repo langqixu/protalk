@@ -838,7 +838,7 @@ export function buildReviewCardV2(reviewData: {
                   placeholder: { tag: 'plain_text', content: '编辑您的回复...' },
                   default_value: currentReply,
                   is_multiline: true,
-                  max_length: 4000,
+                  max_length: 1000,
                   margin: '0px 0px 0px 0px'
                 }
               ]
@@ -918,6 +918,7 @@ export function buildReviewCardV2(reviewData: {
                   default_value: '',
                   width: 'fill',
                   name: 'reply_content',
+                  max_length: 1000,
                   margin: '0px 0px 0px 0px'
                 }
               ]
@@ -1014,7 +1015,7 @@ export function createQuickReplyModal(reviewData: {
           content: '请输入回复内容...'
         },
         multiline: true,
-        max_length: 4000,
+        max_length: 1000,
         required: true
       }
     ],
