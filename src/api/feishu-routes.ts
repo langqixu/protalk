@@ -973,13 +973,14 @@ router.post('/events', async (req: Request, res: Response) => {
  */
 async function handleCardActionEventV1(event: any): Promise<void> {
   try {
-    const { action, user_id, message_id } = event;
+    const { action, user_id, message_id, trigger_id } = event;
     
     logger.info('收到卡片交互事件 (v1)', { 
       action, 
       user_id, 
       message_id,
-      event
+      trigger_id,
+      eventType: event.event_type
     });
 
     if (action && action.value) {
@@ -989,7 +990,8 @@ async function handleCardActionEventV1(event: any): Promise<void> {
       // 构建完整的action值，包含用户输入
       const actionValue = {
         ...action.value,
-        reply_content: replyContent
+        reply_content: replyContent,
+        trigger_id: trigger_id // 添加 trigger_id 用于模态框
       };
       
       await handleCardActionV1(actionValue, user_id, message_id);
