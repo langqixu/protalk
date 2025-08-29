@@ -371,12 +371,47 @@ export class FeishuServiceV1 implements IPusher {
    */
   async pushReviewUpdate(review: any, type: 'new' | 'update' | 'reply'): Promise<void> {
     try {
+      // 🚨 紧急修复：检查是否为验证模式，如果不是验证且已推送则跳过
+      if (!review.isVerification && review.isPushed) {
+        logger.info('评论已推送，跳过重复推送', { 
+          reviewId: review.id || review.reviewId, 
+          type,
+          isPushed: review.isPushed
+        });
+        return;
+      }
+
       const chatId = await this.feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
       await this.pushReviewToChat(chatId, review);
-      logger.info('评论更新推送成功', { reviewId: review.id, type });
+      
+      // 🚨 紧急修复：推送成功后更新数据库状态（仅对非验证评论）
+      if (!review.isVerification) {
+        try {
+          const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+          const dbManager = new SupabaseManager();
+          
+          await dbManager.client
+            .from('app_reviews')
+            .update({ is_pushed: true, push_type: type })
+            .eq('review_id', review.id || review.reviewId);
+          
+          logger.debug('评论推送状态更新成功', { reviewId: review.id || review.reviewId });
+        } catch (dbError) {
+          logger.error('更新推送状态失败', { 
+            reviewId: review.id || review.reviewId,
+            error: dbError instanceof Error ? dbError.message : dbError
+          });
+        }
+      }
+      
+      logger.info('评论更新推送成功', { 
+        reviewId: review.id || review.reviewId, 
+        type,
+        isVerification: !!review.isVerification
+      });
     } catch (error) {
       logger.error('评论更新推送失败', { 
-        reviewId: review.id, 
+        reviewId: review.id || review.reviewId, 
         type,
         error: error instanceof Error ? error.message : error 
       });
