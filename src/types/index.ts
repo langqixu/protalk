@@ -30,6 +30,10 @@ export interface AppReview {
   reviewState?: string;        // 评论状态
   helpful_count?: number;      // 有帮助评论数（用于卡片显示）
   
+  // 飞书卡片相关字段
+  feishuMessageId?: string;    // 飞书消息ID（用于update_card）
+  cardState?: 'initial' | 'replying' | 'replied' | 'editing_reply';  // 卡片状态
+  
   // 审计字段
   createdAt: Date;
   updatedAt: Date;

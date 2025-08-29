@@ -572,6 +572,8 @@ export function buildReviewCardV2(reviewData: {
   developer_response?: any;
   version?: string;        // 🔍 添加版本字段
   country?: string;        // 🔍 添加国家/地区字段
+  card_state?: string;     // 🔄 卡片状态
+  message_id?: string;     // 📮 消息ID（用于update_card）
 }): FeishuCardV2 {
   const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
   const emptyStars = '☆'.repeat(5 - Math.max(0, Math.min(5, reviewData.rating || 0)));
@@ -657,33 +659,133 @@ export function buildReviewCardV2(reviewData: {
   // 分隔线
   builder.addHr();
 
-  // 🎯 交互区域：回复按钮（暂时移除输入框以修复400错误）
-  builder.addDiv('💬 **回复评论**');
+  // 🎯 动态交互区域 - 根据卡片状态显示不同内容
+  const cardState = reviewData.card_state || 'initial';
   
-  // 说明文字
-  builder.addDiv('点击按钮回复此评论，将弹出输入对话框');
-
-  // 🎨 交互按钮组
-  builder.addActionGroup([
-    {
-      text: '💬 回复评论',
-      type: 'primary',
-      value: {
-        action: 'reply_review',
-        review_id: reviewData.id,
-        app_name: reviewData.app_name,
-        author: reviewData.author
+  if (cardState === 'replying') {
+    // 🔸 回复输入状态
+    builder.addDiv('💬 **回复此评论**');
+    
+    // 添加输入框
+    builder.addInput('reply_content', {
+      placeholder: '请输入回复内容...',
+      maxLength: 1000,
+      required: true
+    });
+    
+    // 提交和取消按钮
+    builder.addActionGroup([
+      {
+        text: '📤 提交回复',
+        type: 'primary',
+        value: {
+          action: 'submit_reply',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
+      },
+      {
+        text: '❌ 取消',
+        type: 'default',
+        value: {
+          action: 'cancel_reply',
+          review_id: reviewData.id
+        }
       }
-    },
-    {
-      text: '📊 查看详情',
-      type: 'default',
-      value: {
-        action: 'view_details',
-        review_id: reviewData.id
+    ]);
+    
+  } else if (cardState === 'replied') {
+    // 🔸 已回复状态
+    builder.addDiv('💬 **回复功能**');
+    
+    // 编辑回复和报告问题按钮
+    builder.addActionGroup([
+      {
+        text: '✏️ 编辑回复',
+        type: 'primary',
+        value: {
+          action: 'edit_reply',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
+      },
+      {
+        text: '🚩 报告问题',
+        type: 'default',
+        value: {
+          action: 'report_issue',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
       }
-    }
-  ]);
+    ]);
+    
+  } else if (cardState === 'editing_reply') {
+    // 🔸 编辑回复状态
+    builder.addDiv('✏️ **编辑回复内容**');
+    
+    // 预填充已有回复内容的输入框
+    const existingReply = reviewData.developer_response?.body || '';
+    builder.addInput('reply_content', {
+      placeholder: '请输入回复内容...',
+      maxLength: 1000,
+      required: true,
+      defaultValue: existingReply
+    });
+    
+    // 更新和取消按钮
+    builder.addActionGroup([
+      {
+        text: '📤 更新回复',
+        type: 'primary',
+        value: {
+          action: 'update_reply',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
+      },
+      {
+        text: '❌ 取消',
+        type: 'default',
+        value: {
+          action: 'cancel_edit',
+          review_id: reviewData.id
+        }
+      }
+    ]);
+    
+  } else {
+    // 🔸 初始状态 - 显示主要操作按钮
+    builder.addDiv('💬 **回复功能**');
+    
+    // 回复和报告问题按钮
+    builder.addActionGroup([
+      {
+        text: '💬 回复评论',
+        type: 'primary',
+        value: {
+          action: 'reply_review',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
+      },
+      {
+        text: '🚩 报告问题',
+        type: 'default',
+        value: {
+          action: 'report_issue',
+          review_id: reviewData.id,
+          app_name: reviewData.app_name,
+          author: reviewData.author
+        }
+      }
+    ]);
+  }
 
   return builder.build();
 }
@@ -714,6 +816,91 @@ export function createConfirmCard(
     .build();
 }
 
+/**
+ * 创建报告问题的模态对话框
+ */
+export function createReportIssueModal(reviewData: {
+  review_id: string;
+  app_name: string;
+  author: string;
+}): any {
+  return {
+    type: 'modal',
+    title: {
+      tag: 'plain_text',
+      content: '🚩 报告问题'
+    },
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**评论信息**\n应用：${reviewData.app_name}\n用户：${reviewData.author}\n\n请选择问题类型并描述具体问题：`
+        }
+      },
+      {
+        tag: 'select_static',
+        placeholder: {
+          tag: 'plain_text',
+          content: '请选择问题类型...'
+        },
+        name: 'issue_type',
+        required: true,
+        options: [
+          {
+            text: {
+              tag: 'plain_text',
+              content: '包含冒犯性内容'
+            },
+            value: 'harmful_content'
+          },
+          {
+            text: {
+              tag: 'plain_text',
+              content: '疑似垃圾内容'
+            },
+            value: 'spam'
+          },
+          {
+            text: {
+              tag: 'plain_text',
+              content: '偏离主题'
+            },
+            value: 'off_topic'
+          },
+          {
+            text: {
+              tag: 'plain_text',
+              content: '其他原因'
+            },
+            value: 'other'
+          }
+        ]
+      },
+      {
+        tag: 'input',
+        name: 'description',
+        placeholder: {
+          tag: 'plain_text',
+          content: '请详细描述问题...'
+        },
+        multiline: true,
+        max_length: 4000
+      }
+    ],
+    submit: {
+      tag: 'plain_text',
+      content: '提交'
+    },
+    cancel: {
+      tag: 'plain_text',
+      content: '取消'
+    },
+    submit_disabled_when_loading: true,
+    notify_on_cancel: false
+  };
+}
+
 // buildReviewCardV2 已经作为 export function 导出
 
 export default {
@@ -722,5 +909,6 @@ export default {
   createTextCard,
   createInfoCard,
   createConfirmCard,
-  buildReviewCardV2
+  buildReviewCardV2,
+  createReportIssueModal
 };

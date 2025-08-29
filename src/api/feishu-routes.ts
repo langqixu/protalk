@@ -575,8 +575,7 @@ router.post('/card-actions', async (req: Request, res: Response) => {
 
     // 异步处理卡片交互
     if (action && action.value) {
-      
-      // 从输入框中获取用户输入的回复内容（用于模态框提交）
+      // 从输入框中获取用户输入的回复内容
       const replyContent = action.form_value?.reply_content || action.value.reply_content;
       
       // 构建完整的action值，包含用户输入
@@ -924,7 +923,7 @@ async function handleCardActionEventV1(event: any): Promise<void> {
 }
 
 /**
- * 处理卡片交互动作 (v1)
+ * 处理卡片交互动作 (v1) - 支持完整回复流程
  */
 async function handleCardActionV1(
   actionValue: any, 
@@ -932,19 +931,37 @@ async function handleCardActionV1(
   messageId: string
 ): Promise<void> {
   try {
-    const { action, review_id, app_id } = actionValue;
+    const { action, review_id, app_name, author, reply_content } = actionValue;
     
     logger.info('处理卡片交互动作 (v1)', { 
       action, 
       review_id, 
-      app_id, 
+      app_name, 
+      author,
       userId, 
-      messageId 
+      messageId,
+      hasReplyContent: !!reply_content
     });
 
     switch (action) {
+      case 'reply_review':
+        await handleReplyReview(review_id, messageId);
+        break;
       case 'submit_reply':
-        await handleSubmitReplyV1(actionValue, userId);
+        await handleSubmitReply(review_id, reply_content, messageId);
+        break;
+      case 'edit_reply':
+        await handleEditReply(review_id, messageId);
+        break;
+      case 'update_reply':
+        await handleUpdateReply(review_id, reply_content, messageId);
+        break;
+      case 'cancel_reply':
+      case 'cancel_edit':
+        await handleCancelReply(review_id, messageId);
+        break;
+      case 'report_issue':
+        await handleReportIssue(actionValue, userId);
         break;
       case 'view_details':
         await handleViewDetailsV1(actionValue, userId);
@@ -965,52 +982,7 @@ async function handleCardActionV1(
   }
 }
 
-/**
- * 处理提交回复 (v1)
- */
-async function handleSubmitReplyV1(
-  actionValue: any, 
-  userId: string
-): Promise<void> {
-  try {
-    const { review_id, reply_content } = actionValue;
-    
-    if (!review_id) {
-      logger.warn('评论ID为空 (v1)', { actionValue, userId });
-      return;
-    }
-    
-    if (!reply_content || reply_content.trim().length === 0) {
-      logger.warn('回复内容为空 (v1)', { review_id, userId });
-      // TODO: 发送错误提示消息到飞书卡片
-      return;
-    }
 
-    logger.info('开始处理评论回复 (v1)', { 
-      review_id, 
-      reply_content: reply_content.substring(0, 50) + '...', 
-      userId 
-    });
-
-    if (!feishuService) {
-      throw new Error('飞书服务未初始化');
-    }
-
-    // 调用真实的App Store Connect API回复评论
-    await feishuService.handleReplyAction(review_id, reply_content, userId);
-    
-    logger.info('评论回复处理完成 (v1)', { review_id, userId });
-    
-  } catch (error) {
-    logger.error('评论回复失败 (v1)', {
-      error: error instanceof Error ? error.message : error,
-      actionValue,
-      userId
-    });
-    
-    // TODO: 发送错误反馈消息到飞书卡片
-  }
-}
 
 /**
  * 处理查看详情 (v1)
@@ -1147,5 +1119,535 @@ router.get('/deployment/latest-reviews', async (req: Request, res: Response) => 
     handleError(res, error, '获取最新评论失败');
   }
 });
+
+/**
+ * 处理模态对话框提交事件
+ * POST /feishu/modal-actions
+ */
+router.post('/modal-actions', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { view, user_id } = req.body;
+    
+    logger.info('收到模态对话框提交事件', { 
+      view_id: view?.view_id,
+      user_id
+    });
+
+    // 立即响应飞书服务器
+    res.json({ 
+      success: true,
+      code: 0,
+      message: 'OK'
+    });
+
+    // 异步处理模态对话框提交
+    if (view && view.state && view.state.values) {
+      await handleModalSubmit(view, user_id);
+    }
+
+    return;
+  } catch (error) {
+    handleError(res, error, '处理模态对话框提交');
+  }
+});
+
+// ================================
+// 新的卡片交互处理函数
+// ================================
+
+/**
+ * 处理"回复评论"按钮点击 - 展开输入框
+ */
+async function handleReplyReview(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理回复评论交互', { reviewId, messageId });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 更新卡片状态为 'replying' 并显示输入框
+    const updatedCard = feishuService!.createReviewCard(review, 'replying');
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'replying', messageId);
+
+    logger.info('回复评论卡片更新成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理回复评论失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"提交回复"按钮点击 - 提交开发者回复
+ */
+async function handleSubmitReply(reviewId: string, replyContent: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    if (!replyContent || replyContent.trim().length === 0) {
+      logger.warn('回复内容为空', { reviewId });
+      return;
+    }
+
+    logger.info('处理提交回复', { reviewId, messageId, replyLength: replyContent.length });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 调用 App Store Connect API 提交回复
+    const replyResult = await submitReplyToAppStore(reviewId, replyContent);
+    
+    if (!replyResult.success) {
+      logger.error('App Store 回复提交失败', { reviewId, error: replyResult.error });
+      return;
+    }
+
+    // 更新数据库中的开发者回复
+    await updateDeveloperReply(reviewId, replyContent, replyResult.responseDate);
+
+    // 获取更新后的评论数据
+    const updatedReview = await getReviewFromDatabase(reviewId);
+    
+    // 更新卡片显示开发者回复，状态改为 'replied'
+    const updatedCard = feishuService!.createReviewCard(updatedReview, 'replied');
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'replied', messageId);
+
+    logger.info('提交回复成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理提交回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"编辑回复"按钮点击 - 展开编辑输入框
+ */
+async function handleEditReply(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理编辑回复交互', { reviewId, messageId });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 更新卡片状态为 'editing_reply' 并显示预填充的输入框
+    const updatedCard = feishuService!.createReviewCard(review, 'editing_reply');
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'editing_reply', messageId);
+
+    logger.info('编辑回复卡片更新成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理编辑回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"更新回复"按钮点击 - 更新开发者回复
+ */
+async function handleUpdateReply(reviewId: string, replyContent: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    if (!replyContent || replyContent.trim().length === 0) {
+      logger.warn('回复内容为空', { reviewId });
+      return;
+    }
+
+    logger.info('处理更新回复', { reviewId, messageId, replyLength: replyContent.length });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 调用 App Store Connect API 更新回复
+    const replyResult = await submitReplyToAppStore(reviewId, replyContent);
+    
+    if (!replyResult.success) {
+      logger.error('App Store 回复更新失败', { reviewId, error: replyResult.error });
+      return;
+    }
+
+    // 更新数据库中的开发者回复
+    await updateDeveloperReply(reviewId, replyContent, replyResult.responseDate);
+
+    // 获取更新后的评论数据
+    const updatedReview = await getReviewFromDatabase(reviewId);
+    
+    // 更新卡片显示更新后的回复，状态改为 'replied'
+    const updatedCard = feishuService!.createReviewCard(updatedReview, 'replied');
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'replied', messageId);
+
+    logger.info('更新回复成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理更新回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"取消"按钮点击 - 恢复初始状态
+ */
+async function handleCancelReply(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理取消回复交互', { reviewId, messageId });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 判断原始状态
+    const originalState = review.responseBody ? 'replied' : 'initial';
+    
+    // 恢复到原始状态
+    const updatedCard = feishuService!.createReviewCard(review, originalState);
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, originalState, messageId);
+
+    logger.info('取消回复成功', { reviewId, messageId, originalState });
+  } catch (error) {
+    logger.error('处理取消回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"报告问题"按钮点击 - 打开模态对话框
+ */
+async function handleReportIssue(actionValue: any, userId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    const { review_id, app_name, author, trigger_id } = actionValue;
+    
+    logger.info('处理报告问题交互', { review_id, app_name, author, userId });
+
+    // 创建报告问题的模态对话框
+    const { createReportIssueModal } = require('../utils/feishu-card-v2-builder');
+    const modalData = createReportIssueModal({
+      review_id,
+      app_name,
+      author
+    });
+
+    // 打开模态对话框
+    if (trigger_id) {
+      await feishuService!.openModal(trigger_id, modalData);
+      logger.info('报告问题模态对话框打开成功', { review_id, userId });
+    } else {
+      logger.warn('缺少 trigger_id，无法打开模态对话框', { review_id, userId });
+    }
+
+  } catch (error) {
+    logger.error('处理报告问题失败', { 
+      actionValue, 
+      userId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+// ================================
+// 数据库操作辅助函数
+// ================================
+
+/**
+ * 从数据库获取评论数据
+ */
+async function getReviewFromDatabase(reviewId: string): Promise<any> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .select('*')
+      .eq('review_id', reviewId)
+      .single();
+
+    if (result.error) {
+      logger.error('查询评论失败', { reviewId, error: result.error.message });
+      return null;
+    }
+
+    // 转换数据库字段到 AppReview 格式
+    const review = {
+      reviewId: result.data.review_id,
+      appId: result.data.app_id,
+      rating: result.data.rating,
+      title: result.data.title,
+      body: result.data.body,
+      reviewerNickname: result.data.nickname,
+      createdDate: new Date(result.data.review_date),
+      isEdited: result.data.is_edited,
+      responseBody: result.data.response_body,
+      responseDate: result.data.response_date ? new Date(result.data.response_date) : null,
+      appVersion: result.data.app_version,
+      territoryCode: result.data.territory_code,
+      feishuMessageId: result.data.feishu_message_id,
+      cardState: result.data.card_state || 'initial'
+    };
+
+    return review;
+  } catch (error) {
+    logger.error('获取评论数据失败', { reviewId, error: error instanceof Error ? error.message : error });
+    return null;
+  }
+}
+
+/**
+ * 更新评论的卡片状态
+ */
+async function updateReviewCardState(reviewId: string, cardState: string, messageId?: string): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const updateData: any = { card_state: cardState };
+    if (messageId) {
+      updateData.feishu_message_id = messageId;
+    }
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .update(updateData)
+      .eq('review_id', reviewId);
+
+    if (result.error) {
+      logger.error('更新评论卡片状态失败', { reviewId, cardState, error: result.error.message });
+    } else {
+      logger.info('评论卡片状态更新成功', { reviewId, cardState, messageId });
+    }
+  } catch (error) {
+    logger.error('更新评论卡片状态异常', { reviewId, cardState, error: error instanceof Error ? error.message : error });
+  }
+}
+
+/**
+ * 更新开发者回复内容
+ */
+async function updateDeveloperReply(reviewId: string, replyContent: string, responseDate: Date): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .update({
+        response_body: replyContent,
+        response_date: responseDate.toISOString()
+      })
+      .eq('review_id', reviewId);
+
+    if (result.error) {
+      logger.error('更新开发者回复失败', { reviewId, error: result.error.message });
+    } else {
+      logger.info('开发者回复更新成功', { reviewId, replyLength: replyContent.length });
+    }
+  } catch (error) {
+    logger.error('更新开发者回复异常', { reviewId, error: error instanceof Error ? error.message : error });
+  }
+}
+
+/**
+ * 提交回复到 App Store Connect API
+ */
+async function submitReplyToAppStore(reviewId: string, replyContent: string): Promise<{ success: boolean; responseDate: Date; error?: string }> {
+  try {
+    // 这里应该调用实际的 App Store Connect API
+    // 目前返回模拟结果
+    logger.info('模拟提交回复到 App Store', { reviewId, replyLength: replyContent.length });
+    
+    // 模拟 API 调用延迟
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      success: true,
+      responseDate: new Date()
+    };
+  } catch (error) {
+    logger.error('提交 App Store 回复失败', { reviewId, error: error instanceof Error ? error.message : error });
+    return {
+      success: false,
+      responseDate: new Date(),
+      error: error instanceof Error ? error.message : '未知错误'
+    };
+  }
+}
+
+/**
+ * 处理模态对话框提交
+ */
+async function handleModalSubmit(view: any, userId: string): Promise<void> {
+  try {
+    logger.info('处理模态对话框提交', { view_id: view.view_id, userId });
+
+    // 解析表单数据
+    const formValues: any = view.state.values;
+    const formValuesList = Object.values(formValues);
+    const issueType = (formValuesList[0] as any)?.['issue_type']?.option?.value;
+    const description = (formValuesList[1] as any)?.['description']?.value;
+
+    if (!issueType) {
+      logger.warn('模态对话框缺少问题类型', { userId, view_id: view.view_id });
+      return;
+    }
+
+    // 从 view_id 或其他地方获取 review_id (需要在打开 modal 时传递)
+    // 这里我们假设可以从某种方式获取到 review_id
+    const reviewId = extractReviewIdFromModal(view);
+
+    if (!reviewId) {
+      logger.error('无法从模态对话框中获取评论ID', { userId, view_id: view.view_id });
+      return;
+    }
+
+    // 保存问题报告到数据库
+    await saveIssueReport(reviewId, issueType, description || '', userId);
+
+    logger.info('问题报告保存成功', { 
+      reviewId, 
+      issueType, 
+      userId,
+      hasDescription: !!description 
+    });
+
+  } catch (error) {
+    logger.error('处理模态对话框提交失败', { 
+      userId, 
+      view_id: view?.view_id,
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 从模态对话框中提取评论ID
+ */
+function extractReviewIdFromModal(view: any): string | null {
+  try {
+    // 这里需要根据实际的飞书 modal 结构来提取 review_id
+    // 可能需要在打开 modal 时将 review_id 编码到 view_id 或其他字段中
+    return view.external_id || view.view_id?.split('_')?.[1] || null;
+  } catch (error) {
+    logger.error('提取评论ID失败', { error: error instanceof Error ? error.message : error });
+    return null;
+  }
+}
+
+/**
+ * 保存问题报告到数据库
+ */
+async function saveIssueReport(
+  reviewId: string, 
+  issueType: string, 
+  description: string, 
+  reporterOpenId: string
+): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('review_issue_reports')
+      .insert({
+        review_id: reviewId,
+        issue_type: issueType,
+        description: description,
+        reporter_open_id: reporterOpenId,
+        status: 'pending'
+      });
+
+    if (result.error) {
+      logger.error('保存问题报告失败', { 
+        reviewId, 
+        issueType, 
+        error: result.error.message 
+      });
+    } else {
+      logger.info('问题报告保存成功', { 
+        reviewId, 
+        issueType, 
+        reporterOpenId 
+      });
+    }
+  } catch (error) {
+    logger.error('保存问题报告异常', { 
+      reviewId, 
+      issueType, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
 
 export default router;

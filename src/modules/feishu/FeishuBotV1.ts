@@ -298,6 +298,85 @@ export class FeishuBotV1 {
   }
 
   /**
+   * 更新已发送的互动卡片消息
+   * @param messageId 消息ID
+   * @param cardData 新的卡片数据
+   */
+  async updateCardMessage(messageId: string, cardData: any): Promise<boolean> {
+    try {
+      logger.info('更新互动卡片消息', { messageId });
+      
+      const response = await this.httpClient.patch<{ code: number; msg: string; data: any }>(
+        `/im/v1/messages/${messageId}`,
+        {
+          content: JSON.stringify(cardData)
+        }
+      );
+
+      // 检查飞书响应状态
+      if (response.data.code !== 0) {
+        const errorMsg = `飞书API更新卡片失败: code=${response.data.code}, msg=${response.data.msg}`;
+        logger.error('互动卡片消息更新失败', { 
+          messageId, 
+          code: response.data.code,
+          msg: response.data.msg,
+          error: errorMsg
+        });
+        throw new Error(errorMsg);
+      }
+
+      logger.info('互动卡片消息更新成功', { messageId });
+      return true;
+    } catch (error) {
+      logger.error('互动卡片消息更新失败', { 
+        messageId, 
+        error: error instanceof Error ? error.message : error 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 打开模态对话框
+   * @param triggerId 触发器ID（来自按钮交互事件）
+   * @param modalData 模态对话框数据
+   */
+  async openModal(triggerId: string, modalData: any): Promise<boolean> {
+    try {
+      logger.info('打开模态对话框', { triggerId });
+      
+      const response = await this.httpClient.post<{ code: number; msg: string; data: any }>(
+        '/im/v1/modals/open',
+        {
+          trigger_id: triggerId,
+          view: modalData
+        }
+      );
+
+      // 检查飞书响应状态
+      if (response.data.code !== 0) {
+        const errorMsg = `飞书API打开模态对话框失败: code=${response.data.code}, msg=${response.data.msg}`;
+        logger.error('模态对话框打开失败', { 
+          triggerId, 
+          code: response.data.code,
+          msg: response.data.msg,
+          error: errorMsg
+        });
+        throw new Error(errorMsg);
+      }
+
+      logger.info('模态对话框打开成功', { triggerId });
+      return true;
+    } catch (error) {
+      logger.error('模态对话框打开失败', { 
+        triggerId, 
+        error: error instanceof Error ? error.message : error 
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 发送图片消息
    * @param chatId 群组ID
    * @param imageKey 图片key（需要先上传图片获得）
@@ -572,8 +651,10 @@ export class FeishuBotV1 {
 
   /**
    * 创建App Store评论推送卡片（使用新的v2组件系统）
+   * @param review 评论数据
+   * @param cardState 卡片状态: 'initial' | 'replying' | 'replied' | 'editing_reply'
    */
-  createReviewCard(review: any): any {
+  createReviewCard(review: any, cardState: string = 'initial'): any {
     try {
       // 使用统一的 v2 卡片构建器
       const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
@@ -588,15 +669,18 @@ export class FeishuBotV1 {
         rating: review.rating || 0,
         author: review.reviewerNickname || review.author || '匿名', // 使用reviewerNickname字段
         store_type: review.store_type || 'ios',
-        version: review.appVersion || review.version, // 🔍 使用appVersion字段
+        version: review.appVersion || review.version || review.app_version, // 🔍 使用appVersion字段
         date: review.createdDate ? review.createdDate.toISOString() : (review.date || new Date().toISOString()), // 使用createdDate字段
-        country: review.territoryCode || review.country, // 🔍 使用territoryCode字段
+        country: review.territoryCode || review.country || review.territory_code, // 🔍 使用territoryCode字段
         verified_purchase: review.verified_purchase,
         helpful_count: review.helpful_count,
         developer_response: review.responseBody ? {
           body: review.responseBody,
           date: review.responseDate
-        } : review.developer_response
+        } : review.developer_response,
+        // 添加卡片状态和消息ID
+        card_state: cardState,
+        message_id: review.feishuMessageId || review.feishu_message_id
       };
 
       return buildReviewCardV2(reviewData);

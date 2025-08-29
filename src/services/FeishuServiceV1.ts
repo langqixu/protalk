@@ -484,4 +484,25 @@ export class FeishuServiceV1 implements IPusher {
       // 不抛出错误，避免影响服务启动
     }
   }
+
+  /**
+   * 创建评论卡片 - 公共方法
+   */
+  createReviewCard(review: any, cardState: string = 'initial'): any {
+    return this.feishuBot.createReviewCard(review, cardState);
+  }
+
+  /**
+   * 更新卡片消息 - 公共方法
+   */
+  async updateCardMessage(messageId: string, cardData: any): Promise<boolean> {
+    return this.feishuBot.updateCardMessage(messageId, cardData);
+  }
+
+  /**
+   * 打开模态对话框 - 公共方法
+   */
+  async openModal(triggerId: string, modalData: any): Promise<boolean> {
+    return this.feishuBot.openModal(triggerId, modalData);
+  }
 }
