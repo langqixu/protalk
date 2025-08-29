@@ -1,16 +1,16 @@
 ---
 alwaysApply: true
-description: "Defines the project's directory structure and the purpose of each layer, ensuring consistent organization."
+description: "定义了项目的目录结构和每一层的用途，以确保代码组织的一致性。"
 ---
-# Project Structure
+# 项目结构
 
-This project uses a modular, layered architecture. Adhere to the following structure to maintain clarity and separation of concerns.
+本项目采用模块化、分层的架构。请遵循以下结构以保持代码的清晰度和关注点分离。
 
--   **`src/`**: Main application source code.
-    -   **`src/api/`**: Contains route definitions and request/response handling. It acts as the entry point for API requests and should delegate business logic to the `services` layer. See [feishu-routes.ts](mdc:src/api/feishu-routes.ts) for an example.
-    -   **`src/services/`**: Houses the core business logic. Services coordinate functionality from different modules to perform specific tasks.
-    -   **`src/modules/`**: Contains self-contained feature modules (e.g., [feishu](mdc:src/modules/feishu/), [fetcher](mdc:src/modules/fetcher/), [processor](mdc:src/modules/processor/)). Each module encapsulates a specific domain of functionality.
-    -   **`src/utils/`**: For shared, reusable helper functions that are not tied to any specific business logic.
-    -   **`src/types/`**: Holds shared TypeScript type definitions and interfaces, like in [index.ts](mdc:src/types/index.ts).
-    -   **`src/config/`**: Manages application configuration. See [index.ts](mdc:src/config/index.ts).
--   **Configuration**: Sensitive keys must be managed through environment variables. The [env.example](mdc:env.example) file serves as a template for all required variables.
+-   **`src/`**: 应用程序主源码目录。
+    -   **`src/api/`**: 包含路由定义和请求/响应处理。它作为 API 请求的入口点，应将业务逻辑委托给 `services` 层处理。可参考 [feishu-routes.ts](mdc:src/api/feishu-routes.ts) 作为示例。
+    -   **`src/services/`**: 存放核心业务逻辑。服务层负责协调不同模块的功能以完成特定任务。
+    -   **`src/modules/`**: 包含自成一体的功能模块（例如, [feishu](mdc:src/modules/feishu/), [fetcher](mdc:src/modules/fetcher/), [processor](mdc:src/modules/processor/)）。每个模块封装了特定的功能领域。
+    -   **`src/utils/`**: 用于存放与特定业务逻辑无关的、可共享的辅助函数。
+    -   **`src/types/`**: 存放共享的 TypeScript 类型定义和接口，例如 [index.ts](mdc:src/types/index.ts)。
+    -   **`src/config/`**: 管理应用程序的配置。可参考 [index.ts](mdc:src/config/index.ts)。
+-   **配置 (Configuration)**: 敏感密钥必须通过环境变量进行管理。 [env.example](mdc:env.example) 文件是所有必需变量的模板。

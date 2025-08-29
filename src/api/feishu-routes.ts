@@ -9,12 +9,44 @@ let feishuService: FeishuServiceV1 | null = null;
 // 测试场景回复内容缓存
 const testReplyCache = new Map<string, string>();
 
+// 事件处理状态缓存 - 防止重复处理和界面闪烁
+const eventTimestamps = new Map<string, number>();
+
 /**
  * 初始化飞书v1服务
  */
 export function initializeFeishuServiceV1(service: FeishuServiceV1) {
   feishuService = service;
   logger.info('飞书v1 API路由初始化成功');
+}
+
+/**
+ * 检查并防止重复事件处理
+ */
+function isDuplicateEvent(eventKey: string, timeWindow: number = 2000): boolean {
+  const now = Date.now();
+  const lastTime = eventTimestamps.get(eventKey);
+  
+  // 如果在时间窗口内有相同事件，认为是重复
+  if (lastTime && (now - lastTime) < timeWindow) {
+    logger.warn('检测到重复事件，跳过处理', { eventKey, timeDiff: now - lastTime });
+    return true;
+  }
+  
+  // 记录事件时间戳
+  eventTimestamps.set(eventKey, now);
+  
+  // 清理旧的时间戳（保持内存使用合理）
+  if (eventTimestamps.size > 100) {
+    const oldestAllowed = now - timeWindow * 2;
+    for (const [key, timestamp] of eventTimestamps.entries()) {
+      if (timestamp < oldestAllowed) {
+        eventTimestamps.delete(key);
+      }
+    }
+  }
+  
+  return false;
 }
 
 /**
@@ -1580,6 +1612,12 @@ async function handleEditReply(reviewId: string, messageId: string): Promise<voi
 
     logger.info('处理编辑回复交互', { reviewId, messageId });
 
+    // 防止重复事件处理
+    const eventKey = `edit_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
+
     // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
     const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
     
@@ -1647,6 +1685,12 @@ async function handleUpdateReply(reviewId: string, replyContent: string, message
     }
 
     logger.info('处理更新回复', { reviewId, messageId, replyLength: replyContent.length });
+
+    // 防止重复事件处理
+    const eventKey = `update_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
 
     // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
     const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
@@ -1730,6 +1774,12 @@ async function handleCancelReply(reviewId: string, messageId: string): Promise<v
     }
 
     logger.info('处理取消回复交互', { reviewId, messageId });
+
+    // 防止重复事件处理
+    const eventKey = `cancel_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
 
     // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
     const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
