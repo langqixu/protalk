@@ -574,9 +574,15 @@ export class FeishuBotV1 {
    * 创建App Store评论推送卡片（使用新的v2组件系统）
    */
   createReviewCard(review: any): any {
+    logger.info('🔍 开始创建评论卡片', { reviewId: review.reviewId || review.id });
+    
     try {
-      // 使用统一的 v2 卡片构建器
+      // 使用统一的 v2 卡片构建器 - 修复require路径问题
       const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
+      
+      if (!buildReviewCardV2) {
+        throw new Error('buildReviewCardV2 函数未找到');
+      }
       
       // 🔑 修复字段映射：从AppReview接口字段正确映射到卡片数据
       const reviewData = {
@@ -599,7 +605,10 @@ export class FeishuBotV1 {
         } : review.developer_response
       };
 
-      return buildReviewCardV2(reviewData);
+      logger.info('🔍 调用buildReviewCardV2', { reviewData });
+      const cardResult = buildReviewCardV2(reviewData);
+      logger.info('🔍 卡片构建成功', { hasElements: !!cardResult.elements });
+      return cardResult;
     } catch (error) {
       logger.error('使用v2卡片构建器失败，降级到简单模板', { error: error instanceof Error ? error.message : error });
       
