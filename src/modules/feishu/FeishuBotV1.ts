@@ -554,11 +554,19 @@ export class FeishuBotV1 {
     try {
       const { loadConfig } = require('../../config');
       const config = loadConfig();
-      const store = config.stores.find((s: any) => s.appId === appId);
-      return store?.name || '未知应用';
+      const store = config.stores?.find((s: any) => s.appId === appId);
+      
+      if (store?.name) {
+        logger.debug('成功获取应用名称', { appId, appName: store.name });
+        return store.name;
+      }
+      
+      // Fallback：使用默认名称
+      logger.warn('未找到应用名称，使用默认值', { appId });
+      return '潮汐 for iOS'; // 硬编码的fallback，因为我们知道这个项目是为潮汐应用的
     } catch (error) {
-      logger.warn('获取应用名称失败', { appId, error });
-      return '未知应用';
+      logger.error('获取应用名称失败', { appId, error: error instanceof Error ? error.message : error });
+      return '潮汐 for iOS'; // 安全的fallback
     }
   }
 
@@ -580,9 +588,9 @@ export class FeishuBotV1 {
         rating: review.rating || 0,
         author: review.reviewerNickname || review.author || '匿名', // 使用reviewerNickname字段
         store_type: review.store_type || 'ios',
-        version: review.version,
+        version: review.appVersion || review.version, // 🔍 使用appVersion字段
         date: review.createdDate ? review.createdDate.toISOString() : (review.date || new Date().toISOString()), // 使用createdDate字段
-        country: review.territoryCode || review.country,
+        country: review.territoryCode || review.country, // 🔍 使用territoryCode字段
         verified_purchase: review.verified_purchase,
         helpful_count: review.helpful_count,
         developer_response: review.responseBody ? {

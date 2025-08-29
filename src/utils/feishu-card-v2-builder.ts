@@ -540,6 +540,8 @@ export function buildReviewCardV2(reviewData: {
   store_type?: string;
   helpful_count?: number;
   developer_response?: any;
+  version?: string;        // 🔍 添加版本字段
+  country?: string;        // 🔍 添加国家/地区字段
 }): FeishuCardV2 {
   const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
   const emptyStars = '☆'.repeat(5 - Math.max(0, Math.min(5, reviewData.rating || 0)));
@@ -573,55 +575,65 @@ export function buildReviewCardV2(reviewData: {
       template
     });
 
-  // 🌟 优雅的评分展示
-  builder.addDiv(`${ratingEmoji} **评分**: ${stars}${emptyStars} (${reviewData.rating}/5)`);
+  // 🌟 第一优先级：评分（最显眼，使用大字体和表情）
+  builder.addDiv(`## ${ratingEmoji} ${stars}${emptyStars} (${reviewData.rating}/5)`);
 
-  // 📋 基础信息区域 - 简化为两行显示
-  builder.addDiv(`**👤 用户**: ${reviewData.author || '匿名用户'}`);
-  builder.addDiv(`**📅 时间**: ${new Date(reviewData.date).toLocaleString('zh-CN', {
+  // 📝 第二优先级：评论标题（如果有，使用大字体突出显示）
+  if (reviewData.title && reviewData.title.trim()) {
+    builder.addDiv(`### 📝 ${reviewData.title}`);
+  }
+
+  // 💬 第三优先级：评论正文（主要内容，用突出样式）
+  if (reviewData.content && reviewData.content.trim()) {
+    builder.addNote([
+      {
+        type: 'text',
+        content: reviewData.content
+      }
+    ]);
+  } else {
+    builder.addDiv('*仅评分，无文字评论*');
+  }
+
+  // 🔄 开发者回复区域（如果有）
+  if (reviewData.developer_response && reviewData.developer_response.body) {
+    builder.addDiv(`**🔄 开发者回复**: ${reviewData.developer_response.body}`);
+  }
+
+  // 📊 第四优先级：Meta信息（小字体，灰色调）
+  const metaInfo = [];
+  metaInfo.push(`👤 ${reviewData.author || '匿名用户'}`);
+  metaInfo.push(`📅 ${new Date(reviewData.date).toLocaleString('zh-CN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
   })}`);
-
-  // 📝 评论标题（如果有）
-  if (reviewData.title) {
-    builder.addDiv(`**📝 标题**: ${reviewData.title}`);
+  
+  // 添加版本号、地区等信息（如果有）
+  if (reviewData.version) metaInfo.push(`📱 版本 ${reviewData.version}`);
+  if (reviewData.country) metaInfo.push(`🌍 ${reviewData.country}`);
+  if (reviewData.helpful_count && reviewData.helpful_count > 0) {
+    metaInfo.push(`👍 ${reviewData.helpful_count} 人觉得有帮助`);
   }
 
-  // 💬 评论内容区域 - 使用note突出显示
-  builder.addNote([
-    {
-      type: 'text',
-      content: `💭 **评论内容**:\n${reviewData.content || '暂无文字评论，仅评分'}`
-    }
-  ]);
-
-  // 🔄 开发者回复区域
-  if (reviewData.developer_response && reviewData.developer_response.body) {
-    builder.addNote([
-      {
-        type: 'text',
-        content: `🔄 **开发者回复**: ${reviewData.developer_response.body}`
-      }
-    ]);
-  }
+  builder.addDiv(metaInfo.join(' • '));
 
   // 分隔线
   builder.addHr();
 
-  // 🎯 交互输入区域
-  builder.addDiv('💬 **快速回复评论**');
+  // 🎯 交互区域：直接外露输入框 + 简化按钮
+  builder.addDiv('💬 **回复评论**');
 
+  // 输入框直接可见
   builder.addInput('reply_content', {
     placeholder: '感谢您的反馈！我们会认真考虑您的建议...',
     required: true,
     maxLength: 1000
   });
 
-  // 🎨 增强的交互按钮组
+  // 🎨 简化的按钮组：只保留提交回复
   builder.addActionGroup([
     {
       text: '📤 提交回复',
@@ -632,29 +644,8 @@ export function buildReviewCardV2(reviewData: {
         app_name: reviewData.app_name,
         author: reviewData.author
       }
-    },
-    {
-      text: '📊 查看详情',
-      type: 'default',
-      value: {
-        action: 'view_details',
-        review_id: reviewData.id
-      }
-    },
-    {
-      text: '🏷️ 添加标签',
-      type: 'default',
-      value: {
-        action: 'add_tags',
-        review_id: reviewData.id
-      }
     }
   ]);
-
-  // 📈 附加信息
-  if (reviewData.helpful_count !== undefined && reviewData.helpful_count > 0) {
-    builder.addDiv(`👍 ${reviewData.helpful_count} 人认为此评论有帮助`);
-  }
 
   return builder.build();
 }

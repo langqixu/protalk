@@ -66,11 +66,19 @@ export class RichTextFactory {
     try {
       const { loadConfig } = require('../config');
       const config = loadConfig();
-      const store = config.stores.find((s: any) => s.appId === appId);
-      return store?.name || '未知应用';
+      const store = config.stores?.find((s: any) => s.appId === appId);
+      
+      if (store?.name) {
+        logger.debug('成功获取应用名称', { appId, appName: store.name });
+        return store.name;
+      }
+      
+      // Fallback：使用默认名称
+      logger.warn('未找到应用名称，使用默认值', { appId });
+      return '潮汐 for iOS'; // 安全的fallback
     } catch (error) {
-      logger.warn('获取应用名称失败', { appId, error });
-      return '未知应用';
+      logger.error('获取应用名称失败', { appId, error: error instanceof Error ? error.message : error });
+      return '潮汐 for iOS'; // 安全的fallback
     }
   }
   
@@ -92,6 +100,8 @@ export class RichTextFactory {
           author: review.reviewerNickname || '匿名用户',
           date: review.createdDate.toISOString(),
           store_type: 'ios',
+          version: review.appVersion, // 🔍 添加版本信息
+          country: review.territoryCode, // 🔍 添加地区信息
           helpful_count: review.helpful_count,
           developer_response: review.responseBody ? {
             body: review.responseBody,
