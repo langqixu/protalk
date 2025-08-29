@@ -657,8 +657,8 @@ export class FeishuBotV1 {
    */
   createReviewCard(review: any, cardState: string = 'initial'): any {
     try {
-      // 使用统一的 v2 卡片构建器
-      const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
+      // 使用新的 v2 卡片构建器
+      const { buildReviewCardV2New } = require('../../utils/feishu-card-v2-builder-new');
       
       // 🔑 修复字段映射：从AppReview接口字段正确映射到卡片数据
       const reviewData = {
@@ -684,7 +684,7 @@ export class FeishuBotV1 {
         message_id: review.feishuMessageId || review.feishu_message_id
       };
 
-      return buildReviewCardV2(reviewData);
+      return buildReviewCardV2New(reviewData);
     } catch (error) {
       logger.error('使用v2卡片构建器失败，降级到简单模板', { error: error instanceof Error ? error.message : error });
       

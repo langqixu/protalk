@@ -1290,8 +1290,8 @@ async function handleReplyReview(reviewId: string, messageId: string): Promise<v
     }
 
     // 构建带有输入框的卡片数据
-    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
-    const cardData = buildReviewCardV2({
+    const { buildReviewCardV2New } = require('../utils/feishu-card-v2-builder-new');
+    const cardData = buildReviewCardV2New({
       ...review,
       card_state: 'replying',
       message_id: messageId
@@ -1352,8 +1352,8 @@ async function handleSubmitReply(reviewId: string, replyContent: string, message
     const updatedReview = await getReviewFromDatabase(reviewId);
     
     // 构建已回复状态的卡片
-    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
-    const cardData = buildReviewCardV2({
+    const { buildReviewCardV2New } = require('../utils/feishu-card-v2-builder-new');
+    const cardData = buildReviewCardV2New({
       ...updatedReview,
       card_state: 'replied',
       message_id: messageId
