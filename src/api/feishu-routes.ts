@@ -890,6 +890,12 @@ router.post('/events', async (req: Request, res: Response) => {
   
   // 🔧 DEBUG: 打印所有原始事件
   console.log('🚨 RAW EVENT:', JSON.stringify(req.body, null, 2));
+  logger.info('🚨 RAW EVENT RECEIVED', { 
+    type: req.body.type,
+    event_type: req.body.event?.event_type,
+    timestamp: new Date().toISOString(),
+    fullBody: JSON.stringify(req.body, null, 2)
+  });
   
   try {
     const { challenge, type, event } = req.body;
@@ -1048,6 +1054,66 @@ async function handleCardActionV1(
               {
                 tag: 'div',
                 text: { tag: 'plain_text', content: `按钮点击事件成功收到！时间戳：${actionValue.t}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_traditional':
+        // 🧪 处理传统格式按钮测试
+        logger.info('🎯 收到传统格式按钮点击！', { actionValue, userId, messageId });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 传统按钮测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `传统格式按钮点击成功！测试ID：${actionValue.test_id}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_behaviors':
+        // 🧪 处理behaviors格式按钮测试
+        logger.info('🎯 收到behaviors格式按钮点击！', { actionValue, userId, messageId });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ Behaviors测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `Behaviors格式按钮点击成功！测试ID：${actionValue.test_id}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_submit':
+        // 🧪 处理表单提交测试
+        logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 表单提交测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `表单提交成功！输入内容：${reply_content || '无内容'}` }
               }
             ]
           };
@@ -1924,37 +1990,90 @@ router.post('/test/simple-button', async (_req: Request, res: Response) => {
   }
 });
 
+// 🧪 自定义卡片测试端点 - 接收并发送用户提供的卡片数据
+router.post('/test/custom-card', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { cardData } = req.body;
+    
+    if (!cardData) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少 cardData 参数',
+        message: '请在请求体中提供 cardData'
+      });
+    }
+
+    logger.info('🧪 发送自定义卡片', { 
+      hasFormElements: !!cardData.elements?.some((el: any) => el.tag === 'form'),
+      elementCount: cardData.elements?.length || 0
+    });
+
+    const chatId = await feishuService!.getFirstChatId();
+    await feishuService!.sendCardMessage(chatId!, cardData);
+
+    return res.json({
+      success: true,
+      message: '自定义卡片发送成功',
+      timestamp: new Date().toISOString(),
+      cardInfo: {
+        hasHeader: !!cardData.header,
+        elementCount: cardData.elements?.length || 0,
+        hasForm: !!cardData.elements?.some((el: any) => el.tag === 'form')
+      }
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送自定义卡片');
+    return;
+  }
+});
+
 /**
  * 测试无回复评论的卡片显示
  * POST /feishu/test/no-reply-card
  */
-router.post('/test/no-reply-card', async (req: Request, res: Response) => {
+router.post('/test/no-reply-card', async (_req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
     logger.info('🧪 发送无回复评论测试卡片');
 
-    // 创建一个确保没有回复的测试评论
+    // 创建一个确保没有回复的测试评论，使用正确的字段映射
     const testReview = {
+      // 核心标识字段
       id: `test_no_reply_${Date.now()}`,
       reviewId: `test_no_reply_${Date.now()}`,
-      app_name: '潮汐 for iOS',
+      appId: '1077776989', // 确保有appId用于获取应用名称
+      
+      // 评论内容字段
       rating: 1,
       title: '[测试] 无回复状态',
-      content: '这是一个测试评论，应该显示输入框和提交按钮',
-      author: '测试用户',
-      date: new Date().toISOString(),
+      body: '这是一个测试评论，应该显示输入框和提交按钮', // 使用body而不是content
+      reviewerNickname: '测试用户', // 使用reviewerNickname而不是author
+      createdDate: new Date(), // 使用Date对象而不是字符串
+      
+      // 应用信息字段
       store_type: 'ios',
-      version: '2.3.4',
-      country: 'US',
-      // 确保没有 developer_response
-      developer_response: null,
+      appVersion: '2.3.4', // 使用appVersion而不是version
+      territoryCode: 'US', // 使用territoryCode而不是country
+      
+      // 确保没有回复相关字段
       responseBody: null,
-      response_body: null
+      responseDate: null,
+      developer_response: null,
+      
+      // 其他必要字段
+      isEdited: false,
+      firstSyncAt: new Date(),
+      isPushed: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     // 直接推送这个测试评论
-    const chatId = await feishuService!.feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
+    const chatId = await feishuService!.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
     await feishuService!.pushReviewToChat(chatId, testReview);
 
     logger.info('✅ 无回复评论测试卡片发送成功');

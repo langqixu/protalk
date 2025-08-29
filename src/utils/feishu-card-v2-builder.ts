@@ -62,7 +62,7 @@ export interface DivElement {
 export interface ButtonElement {
   tag: 'button';
   text: TextElement;
-  type?: 'default' | 'primary' | 'danger';
+  type?: 'default' | 'primary' | 'danger' | 'primary_text';
   size?: 'tiny' | 'small' | 'medium' | 'large';
   width?: 'default' | 'fill' | 'auto';
   action_type?: 'request' | 'link' | 'multi';
@@ -79,6 +79,17 @@ export interface ButtonElement {
     title: TextElement;
     text: TextElement;
   };
+  // 飞书 2.0 新增属性
+  behaviors?: Array<{
+    type: 'callback' | 'open_url' | 'open_chat';
+    value?: any;
+  }>;
+  name?: string;
+  margin?: string;
+  icon?: {
+    tag: string;
+    token: string;
+  };
 }
 
 export interface InputElement {
@@ -89,12 +100,17 @@ export interface InputElement {
   default_value?: string;
   width?: 'default' | 'fill' | 'auto';
   max_length?: number;
+  // 飞书 2.0 新增属性
+  margin?: string;
 }
 
 export interface FormElement {
   tag: 'form';
   name: string;
   elements: CardElement[];
+  direction?: 'vertical' | 'horizontal';
+  padding?: string;
+  margin?: string;
 }
 
 export interface SelectStaticElement {
@@ -124,17 +140,22 @@ export interface ImageElement {
   preview?: boolean;
 }
 
+export interface ColumnElement {
+  tag: 'column';
+  width?: 'auto' | 'weighted' | string;
+  weight?: number;
+  vertical_align?: 'top' | 'center' | 'bottom';
+  elements: CardElement[];
+}
+
 export interface ColumnSetElement {
   tag: 'column_set';
-  flex_mode: 'none' | 'stretch' | 'flow';
+  flex_mode?: 'none' | 'stretch' | 'flow';
   background_style?: 'default' | 'grey';
-  columns: Array<{
-    tag: 'column';
-    width?: 'auto' | 'weighted' | string;
-    weight?: number;
-    vertical_align?: 'top' | 'center' | 'bottom';
-    elements: CardElement[];
-  }>;
+  horizontal_spacing?: string;
+  horizontal_align?: 'left' | 'center' | 'right';
+  margin?: string;
+  columns: ColumnElement[];
 }
 
 export interface NoteElement {
@@ -157,6 +178,7 @@ export type CardElement =
   | ButtonElement 
   | ImageElement 
   | ColumnSetElement 
+  | ColumnElement
   | NoteElement 
   | HrElement 
   | ActionElement
@@ -789,42 +811,63 @@ export function buildReviewCardV2(reviewData: {
     });
     
   } else {
-    // 初始状态：显示输入框 + 提交按钮（参考官方示例的表单结构）
+    // 初始状态：显示输入框 + 提交按钮（使用飞书 2.0 格式）
     card.elements.push({
       tag: 'form',
       name: 'reply_form',
       elements: [
         {
-          tag: 'div',
-          text: { tag: 'lark_md', content: '💬 **开发者回复**' }
-        },
-        {
-          tag: 'input',
-          name: 'reply_content',
-          placeholder: { tag: 'plain_text', content: '回复用户...' },
-          required: true,
-          max_length: 1000,
-          width: 'fill'
-        },
-        {
-          tag: 'action',
-          actions: [
+          tag: 'column_set',
+          horizontal_spacing: '8px',
+          horizontal_align: 'left',
+          columns: [
             {
-              tag: 'button',
-              text: { tag: 'plain_text', content: '提交回复' },
-              type: 'primary',
-              action_type: 'request',
-              form_action_type: 'submit',
-              value: {
-                action: 'submit_reply',
-                review_id: reviewData.id,
-                app_name: reviewData.app_name,
-                author: reviewData.author
-              }
+              tag: 'column',
+              width: 'weighted',
+              weight: 5,
+              vertical_align: 'top',
+              elements: [
+                {
+                  tag: 'input',
+                  placeholder: { tag: 'plain_text', content: '回复用户...' },
+                  default_value: '',
+                  width: 'fill',
+                  name: 'reply_content',
+                  margin: '0px 0px 0px 0px'
+                }
+              ]
+            },
+            {
+              tag: 'column',
+              width: 'weighted', 
+              weight: 1,
+              vertical_align: 'top',
+              elements: [
+                {
+                  tag: 'button',
+                  text: { tag: 'plain_text', content: '提交' },
+                  type: 'primary',
+                  width: 'fill',
+                  size: 'medium',
+                  action_type: 'request',
+                  form_action_type: 'submit',
+                  value: {
+                    action: 'submit_reply',
+                    review_id: reviewData.id,
+                    app_name: reviewData.app_name,
+                    author: reviewData.author
+                  },
+                  name: 'submit_button'
+                }
+              ]
             }
-          ]
+          ],
+          margin: '0px 0px 0px 0px'
         }
-      ]
+      ],
+      direction: 'vertical',
+      padding: '4px 0px 4px 0px',
+      margin: '0px 0px 0px 0px'
     });
   }
 
