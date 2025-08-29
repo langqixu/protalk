@@ -66,6 +66,7 @@ export interface ButtonElement {
   size?: 'tiny' | 'small' | 'medium' | 'large';
   width?: 'default' | 'fill' | 'auto';
   action_type?: 'request' | 'link' | 'multi';
+  form_action_type?: 'submit' | 'reset';
   url?: string;
   multi_url?: {
     url: string;
@@ -88,6 +89,27 @@ export interface InputElement {
   default_value?: string;
   width?: 'default' | 'fill' | 'auto';
   max_length?: number;
+}
+
+export interface FormElement {
+  tag: 'form';
+  name: string;
+  elements: CardElement[];
+}
+
+export interface SelectStaticElement {
+  tag: 'select_static';
+  name: string;
+  placeholder?: TextElement;
+  options: Array<{
+    text: TextElement;
+    value: string;
+  }>;
+  initial_option?: {
+    text: TextElement;
+    value: string;
+  };
+  required?: boolean;
 }
 
 export interface ImageElement {
@@ -138,7 +160,9 @@ export type CardElement =
   | NoteElement 
   | HrElement 
   | ActionElement
-  | InputElement;
+  | InputElement
+  | FormElement
+  | SelectStaticElement;
 
 export interface FeishuCardV2 {
   config?: CardConfig;
@@ -326,6 +350,108 @@ export class FeishuCardV2Builder {
     };
 
     this.card.elements.push(input);
+    return this;
+  }
+
+  /**
+   * 添加表单容器
+   */
+  addForm(
+    name: string,
+    elements: CardElement[],
+    options: {
+      submitButton?: {
+        text: string;
+        type?: 'primary' | 'default';
+        value?: any;
+      };
+      resetButton?: {
+        text: string;
+        value?: any;
+      };
+    } = {}
+  ): this {
+    // 如果提供了按钮配置，自动添加按钮到表单元素中
+    const formElements = [...elements];
+    
+    if (options.submitButton || options.resetButton) {
+      const buttons: ButtonElement[] = [];
+      
+      if (options.submitButton) {
+        buttons.push({
+          tag: 'button',
+          text: { tag: 'plain_text', content: options.submitButton.text },
+          type: options.submitButton.type || 'primary',
+          action_type: 'request',
+          form_action_type: 'submit',
+          value: options.submitButton.value || {}
+        } as ButtonElement & { form_action_type: 'submit' });
+      }
+      
+      if (options.resetButton) {
+        buttons.push({
+          tag: 'button',
+          text: { tag: 'plain_text', content: options.resetButton.text },
+          type: 'default',
+          action_type: 'request',
+          form_action_type: 'reset',
+          value: options.resetButton.value || {}
+        } as ButtonElement & { form_action_type: 'reset' });
+      }
+      
+      formElements.push({
+        tag: 'action',
+        actions: buttons,
+        layout: 'flow'
+      });
+    }
+    
+    const form: FormElement = {
+      tag: 'form',
+      name,
+      elements: formElements
+    };
+    
+    this.card.elements.push(form);
+    return this;
+  }
+
+  /**
+   * 添加下拉选择器（单选）
+   */
+  addSelectStatic(
+    name: string,
+    options: Array<{ text: string; value: string }>,
+    config: {
+      placeholder?: string;
+      initialValue?: string;
+      required?: boolean;
+    } = {}
+  ): this {
+    const selectOptions = options.map(opt => ({
+      text: { tag: 'plain_text' as const, content: opt.text },
+      value: opt.value
+    }));
+    
+    const select: SelectStaticElement = {
+      tag: 'select_static',
+      name,
+      options: selectOptions,
+      required: config.required || false
+    };
+    
+    if (config.placeholder) {
+      select.placeholder = { tag: 'plain_text', content: config.placeholder };
+    }
+    
+    if (config.initialValue) {
+      const initialOption = selectOptions.find(opt => opt.value === config.initialValue);
+      if (initialOption) {
+        select.initial_option = initialOption;
+      }
+    }
+    
+    this.card.elements.push(select);
     return this;
   }
 
@@ -662,22 +788,27 @@ export function buildReviewCardV2(reviewData: {
   builder.addHr();
 
   // 🎯 动态交互区域 - 根据卡片状态显示不同内容
-  const cardState = reviewData.card_state || 'initial';
+  // 基于 response_body 动态判断状态，而不使用存储的 card_state
+  const hasReply = reviewData.developer_response && reviewData.developer_response.body;
+  const cardState = reviewData.card_state || (hasReply ? 'replied' : 'initial');
   
   if (cardState === 'replying') {
-    // 🔸 回复输入状态
+    // 🔸 回复输入状态 - 使用飞书官方 form 表单容器
     builder.addDiv('💬 **回复此评论**');
     
-    // 添加输入框
-    builder.addInput('reply_content', {
-      placeholder: '请输入回复内容...',
-      maxLength: 1000,
-      required: true
-    });
-    
-    // 提交和取消按钮
-    builder.addActionGroup([
+    // 使用 form 表单容器包装输入框和按钮
+    builder.addForm('reply_form', [
+      // 输入框元素
       {
+        tag: 'input',
+        name: 'reply_content',
+        placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
+        required: true,
+        max_length: 1000,
+        width: 'fill'
+      } as InputElement
+    ], {
+      submitButton: {
         text: '📤 提交回复',
         type: 'primary',
         value: {
@@ -687,15 +818,14 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      {
+      resetButton: {
         text: '❌ 取消',
-        type: 'default',
         value: {
           action: 'cancel_reply',
           review_id: reviewData.id
         }
       }
-    ]);
+    });
     
   } else if (cardState === 'replied') {
     // 🔸 已回复状态
@@ -726,21 +856,26 @@ export function buildReviewCardV2(reviewData: {
     ]);
     
   } else if (cardState === 'editing_reply') {
-    // 🔸 编辑回复状态
+    // 🔸 编辑回复状态 - 使用飞书官方 form 表单容器
     builder.addDiv('✏️ **编辑回复内容**');
     
     // 预填充已有回复内容的输入框
     const existingReply = reviewData.developer_response?.body || '';
-    builder.addInput('reply_content', {
-      placeholder: '请输入回复内容...',
-      maxLength: 1000,
-      required: true,
-      defaultValue: existingReply
-    });
     
-    // 更新和取消按钮
-    builder.addActionGroup([
+    // 使用 form 表单容器包装输入框和按钮
+    builder.addForm('edit_reply_form', [
+      // 输入框元素，预填充现有回复
       {
+        tag: 'input',
+        name: 'reply_content',
+        placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
+        required: true,
+        max_length: 1000,
+        width: 'fill',
+        default_value: existingReply
+      } as InputElement
+    ], {
+      submitButton: {
         text: '📤 更新回复',
         type: 'primary',
         value: {
@@ -750,15 +885,14 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      {
+      resetButton: {
         text: '❌ 取消',
-        type: 'default',
         value: {
           action: 'cancel_edit',
           review_id: reviewData.id
         }
       }
-    ]);
+    });
     
   } else {
     // 🔸 初始状态 - 显示主要操作按钮

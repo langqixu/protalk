@@ -891,23 +891,24 @@ router.post('/events', async (req: Request, res: Response) => {
 });
 
 /**
- * 处理卡片交互事件 (v1)
+ * 处理卡片交互事件 (v1) - 支持 form 表单容器
  */
 async function handleCardActionEventV1(event: any): Promise<void> {
   try {
-    const { action, user_id, message_id, trigger_id } = event;
+    const { action, user_id, message_id, trigger_id, form_value } = event;
     
     logger.info('收到卡片交互事件 (v1)', { 
       action, 
       user_id, 
       message_id,
       trigger_id,
-      eventType: event.event_type
+      eventType: event.event_type,
+      hasFormValue: !!form_value
     });
 
     if (action && action.value) {
-      // 从输入框中获取用户输入的回复内容
-      const replyContent = action.form_value?.reply_content;
+      // 从飞书官方 form 表单容器中获取用户输入
+      const replyContent = form_value?.reply_content || action.form_value?.reply_content;
       
       // 构建完整的action值，包含用户输入
       const actionValue = {
@@ -915,6 +916,11 @@ async function handleCardActionEventV1(event: any): Promise<void> {
         reply_content: replyContent,
         trigger_id: trigger_id // 添加 trigger_id 用于模态框
       };
+      
+      logger.debug('解析的表单数据', {
+        replyContent: replyContent?.substring(0, 50) + (replyContent?.length > 50 ? '...' : ''),
+        actionType: actionValue.action
+      });
       
       await handleCardActionV1(actionValue, user_id, message_id);
     }
@@ -986,6 +992,8 @@ async function handleCardActionV1(
     });
   }
 }
+
+
 
 
 
@@ -1181,9 +1189,16 @@ async function handleReplyReview(reviewId: string, messageId: string): Promise<v
       return;
     }
 
-    // 更新卡片状态为 'replying' 并显示输入框
-    const updatedCard = feishuService!.createReviewCard(review, 'replying');
-    await feishuService!.updateCardMessage(messageId, updatedCard);
+    // 构建带有输入框的卡片数据
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const cardData = buildReviewCardV2({
+      ...review,
+      card_state: 'replying',
+      message_id: messageId
+    });
+    
+    // 更新卡片
+    await feishuService!.updateCardMessage(messageId, cardData);
 
     // 更新数据库中的卡片状态
     await updateReviewCardState(reviewId, 'replying', messageId);
@@ -1236,9 +1251,16 @@ async function handleSubmitReply(reviewId: string, replyContent: string, message
     // 获取更新后的评论数据
     const updatedReview = await getReviewFromDatabase(reviewId);
     
-    // 更新卡片显示开发者回复，状态改为 'replied'
-    const updatedCard = feishuService!.createReviewCard(updatedReview, 'replied');
-    await feishuService!.updateCardMessage(messageId, updatedCard);
+    // 构建已回复状态的卡片
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const cardData = buildReviewCardV2({
+      ...updatedReview,
+      card_state: 'replied',
+      message_id: messageId
+    });
+    
+    // 更新卡片显示
+    await feishuService!.updateCardMessage(messageId, cardData);
 
     // 更新数据库中的卡片状态
     await updateReviewCardState(reviewId, 'replied', messageId);
