@@ -57,7 +57,7 @@ router.get('/status', async (req: Request, res: Response) => {
     if (!ensureServiceInitialized(res)) return;
 
     // 🚨 紧急修复逻辑
-    if (req.query.emergency === 'mark-historical') {
+    if (req.query['emergency'] === 'mark-historical') {
       logger.info('🚨 通过status端点执行紧急修复');
       
       const { SupabaseManager } = require('../modules/storage/SupabaseManager');
@@ -65,7 +65,7 @@ router.get('/status', async (req: Request, res: Response) => {
       
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24小时前
       
-      if (req.query.confirm === 'true') {
+      if (req.query['confirm'] === 'true') {
         // 实际执行
         const { error: updateError } = await dbManager.client
           .from('app_reviews')
@@ -107,7 +107,7 @@ router.get('/status', async (req: Request, res: Response) => {
           emergency: 'preview',
           message: `发现 ${reviews.length} 条未推送的历史评论`,
           cutoffDate: cutoff.toISOString(),
-          sampleReviews: reviews.slice(0, 5).map(r => ({
+          sampleReviews: reviews.slice(0, 5).map((r: any) => ({
             id: r.review_id.slice(0, 20) + '...',
             date: r.created_date,
             title: r.title?.slice(0, 30) + '...'
@@ -120,7 +120,7 @@ router.get('/status', async (req: Request, res: Response) => {
     // 正常状态查询
     const status = feishuService!.getStatus();
     
-    res.json({
+    return res.json({
       success: true,
       status: {
         ...status,
@@ -1796,7 +1796,7 @@ router.post('/emergency/mark-historical-pushed', async (req: Request, res: Respo
         dryRun: true,
         message: `找到 ${reviews.length} 条历史评论待标记`,
         cutoffDate: cutoff.toISOString(),
-        sampleReviews: reviews.slice(0, 5).map(r => ({
+        sampleReviews: reviews.slice(0, 5).map((r: any) => ({
           id: r.review_id.slice(0, 20) + '...',
           date: r.created_date,
           title: r.title?.slice(0, 30) + '...'
