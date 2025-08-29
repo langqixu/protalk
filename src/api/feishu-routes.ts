@@ -1704,15 +1704,19 @@ async function saveIssueReport(
 }
 
 // 🚨 紧急修复API：批量标记历史评论为已推送
-router.post('/emergency/mark-historical-pushed', async (req, res) => {
+router.post('/emergency/mark-historical-pushed', async (req: Request, res: Response) => {
   try {
     logger.info('🚨 执行紧急修复：批量标记历史评论为已推送');
     
     const { cutoffDate, dryRun = true } = req.body;
     const cutoff = cutoffDate ? new Date(cutoffDate) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 默认24小时前
     
+    // 创建数据库连接
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+    
     // 查询需要标记的评论
-    const { data: reviews, error: queryError } = await db!.client
+    const { data: reviews, error: queryError } = await dbManager.client
       .from('app_reviews')
       .select('review_id, created_date, title')
       .lt('created_date', cutoff.toISOString())
@@ -1740,7 +1744,7 @@ router.post('/emergency/mark-historical-pushed', async (req, res) => {
     }
     
     // 实际执行标记
-    const { error: updateError } = await db!.client
+    const { error: updateError } = await dbManager.client
       .from('app_reviews')
       .update({ 
         is_pushed: true, 
