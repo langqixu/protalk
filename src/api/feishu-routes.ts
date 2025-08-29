@@ -52,7 +52,7 @@ function handleError(res: Response, error: unknown, operation: string) {
  * 获取服务状态 / 紧急修复
  * GET /feishu/status?emergency=mark-historical&confirm=true
  */
-router.get('/status', async (req: Request, res: Response): Promise<void> => {
+router.get('/status', async (req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
@@ -83,12 +83,13 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
         
         logger.info('✅ 紧急修复完成：历史评论已标记为已推送');
         
-        return res.json({
+        res.json({
           success: true,
           emergency: 'completed',
           message: '历史评论已批量标记为已推送',
           cutoffDate: cutoff.toISOString()
         });
+        return;
       } else {
         // 预览模式
         const { data: reviews, error: queryError } = await dbManager.client
@@ -102,7 +103,7 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
           throw new Error(`查询失败: ${queryError.message}`);
         }
         
-        return res.json({
+        res.json({
           success: true,
           emergency: 'preview',
           message: `发现 ${reviews.length} 条未推送的历史评论`,
@@ -114,13 +115,14 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
           })),
           instruction: '添加 &confirm=true 参数执行实际修复'
         });
+        return;
       }
     }
 
     // 正常状态查询
     const status = feishuService!.getStatus();
     
-    return res.json({
+    res.json({
       success: true,
       status: {
         ...status,
@@ -1222,7 +1224,7 @@ router.post('/modal-actions', async (req: Request, res: Response) => {
       await handleModalSubmit(view, user_id);
     }
 
-    return;
+      return;
   } catch (error) {
     handleError(res, error, '处理模态对话框提交');
   }
@@ -1499,7 +1501,7 @@ async function handleReportIssue(actionValue: any, userId: string): Promise<void
 
   } catch (error) {
     logger.error('处理报告问题失败', { 
-      actionValue, 
+      actionValue,
       userId, 
       error: error instanceof Error ? error.message : error 
     });
