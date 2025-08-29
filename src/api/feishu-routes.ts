@@ -1060,17 +1060,22 @@ router.post('/deployment/verify', async (req: Request, res: Response) => {
     // 导入部署验证服务
     const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
     
-    // 获取数据库和推送服务实例
-    const db = (global as any).databaseManager;
+    // 获取推送服务实例
     const pusher = feishuService;
     
-    if (!db || !pusher) {
+    if (!pusher) {
       res.status(500).json({
         success: false,
-        error: '服务未正确初始化'
+        error: '飞书服务未初始化'
       });
       return;
     }
+    
+    // 直接创建数据库管理器实例
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const { loadConfig } = require('../config');
+    const { env: envConfig } = loadConfig();
+    const db = new SupabaseManager({ supabase: envConfig.supabase });
 
     // 创建验证服务实例
     const verificationService = new DeploymentVerificationService(db, pusher);
@@ -1104,15 +1109,11 @@ router.get('/deployment/latest-reviews', async (req: Request, res: Response) => 
 
     const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
     
-    const db = (global as any).databaseManager;
-    
-    if (!db) {
-      res.status(500).json({
-        success: false,
-        error: '数据库服务未初始化'
-      });
-      return;
-    }
+    // 直接创建数据库管理器实例
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const { loadConfig } = require('../config');
+    const { env: envConfig } = loadConfig();
+    const db = new SupabaseManager({ supabase: envConfig.supabase });
 
     const verificationService = new DeploymentVerificationService(db, null as any);
     const limit = parseInt(req.query['limit'] as string) || 5;
