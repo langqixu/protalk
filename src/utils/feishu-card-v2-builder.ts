@@ -831,9 +831,9 @@ export function buildReviewCardV2(reviewData: {
     // 🔸 已回复状态
     builder.addDiv('💬 **回复功能**');
     
-    // 编辑回复和报告问题按钮
-    builder.addActionGroup([
-      {
+    // 🔧 修复：使用表单容器包装按钮
+    builder.addForm('replied_action_form', [], {
+      submitButton: {
         text: '✏️ 编辑回复',
         type: 'primary',
         value: {
@@ -843,9 +843,8 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      {
+      resetButton: {
         text: '🚩 报告问题',
-        type: 'default',
         value: {
           action: 'report_issue',
           review_id: reviewData.id,
@@ -853,7 +852,7 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       }
-    ]);
+    });
     
   } else if (cardState === 'editing_reply') {
     // 🔸 编辑回复状态 - 使用飞书官方 form 表单容器
@@ -898,9 +897,9 @@ export function buildReviewCardV2(reviewData: {
     // 🔸 初始状态 - 显示主要操作按钮
     builder.addDiv('💬 **回复功能**');
     
-    // 回复和报告问题按钮
-    builder.addActionGroup([
-      {
+    // 🔧 修复：使用表单容器包装按钮，确保回调事件正确触发
+    builder.addForm('action_form', [], {
+      submitButton: {
         text: '💬 回复评论',
         type: 'primary',
         value: {
@@ -910,9 +909,8 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       },
-      {
+      resetButton: {
         text: '🚩 报告问题',
-        type: 'default',
         value: {
           action: 'report_issue',
           review_id: reviewData.id,
@@ -920,7 +918,7 @@ export function buildReviewCardV2(reviewData: {
           author: reviewData.author
         }
       }
-    ]);
+    });
   }
 
   return builder.build();
