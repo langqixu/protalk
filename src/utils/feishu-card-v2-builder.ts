@@ -746,7 +746,7 @@ export function buildReviewCardV2(reviewData: {
 
   // 添加元信息
   const dateStr = new Date(reviewData.date).toLocaleString('zh-CN');
-  const countryDisplay = `🇺🇸 ${reviewData.country || 'US'}`;
+  const countryDisplay = `${getCountryFlag(reviewData.country)} ${reviewData.country || 'US'}`;
   
   card.elements.push({
     tag: 'div',

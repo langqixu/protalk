@@ -11,7 +11,6 @@ import { AppReview } from '../types';
 //   createCompactReviewCard 
 // } from './review-card-templates';
 import logger from './logger';
-import { buildReviewCardV2 } from './feishu-card-v2-builder';
 
 // ================================
 // 富文本消息类型定义
