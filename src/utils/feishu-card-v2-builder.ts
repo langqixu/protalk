@@ -754,13 +754,10 @@ export function buildReviewCardV2(reviewData: {
     elements: []
   };
 
-  // 添加评分和用户信息
+  // 添加评分信息
   card.elements.push({
     tag: 'div',
-    text: { tag: 'lark_md', content: `${stars}${emptyStars} (${reviewData.rating}/5)` },
-    fields: [
-      { is_short: false, text: { tag: 'lark_md', content: `👤 ${reviewData.author}` } }
-    ]
+    text: { tag: 'lark_md', content: `${stars}${emptyStars} (${reviewData.rating}/5)` }
   });
 
   // 添加评论内容
@@ -769,7 +766,7 @@ export function buildReviewCardV2(reviewData: {
     text: { tag: 'lark_md', content: `**${reviewData.title || '此处为评论标题'}**\n${reviewData.content}` }
   });
 
-  // 添加元信息
+  // 添加元信息 (2x2布局：日期+用户名，版本+国家地区)
   const dateStr = new Date(reviewData.date).toLocaleString('zh-CN');
   const countryDisplay = `${getCountryFlag(reviewData.country)} ${reviewData.country || 'US'}`;
   
@@ -777,6 +774,7 @@ export function buildReviewCardV2(reviewData: {
     tag: 'div',
     fields: [
       { is_short: true, text: { tag: 'lark_md', content: `📅 ${dateStr}` } },
+      { is_short: true, text: { tag: 'lark_md', content: `👤 ${reviewData.author}` } },
       { is_short: true, text: { tag: 'lark_md', content: `📱 ${reviewData.version || '未知版本'}` } },
       { is_short: true, text: { tag: 'lark_md', content: countryDisplay } }
     ]
@@ -787,28 +785,52 @@ export function buildReviewCardV2(reviewData: {
 
   // 根据状态添加不同的交互元素
   if (finalCardState === 'replied') {
-    // 已回复状态：显示回复内容 + 编辑按钮
+    // 已回复状态：显示回复内容 + 编辑按钮（使用column_set布局）
     const replyContent = reviewData.reply_content || reviewData.developer_response?.body || '暂无回复内容';
     
     card.elements.push({
       tag: 'div',
-      text: { tag: 'lark_md', content: `💬 **开发者回复**\n${replyContent}` }
+      text: { tag: 'lark_md', content: `💬 **开发者回复**` }
     });
     
     card.elements.push({
-      tag: 'action',
-      actions: [
+      tag: 'column_set',
+      horizontal_spacing: '8px',
+      horizontal_align: 'left',
+      columns: [
         {
-          tag: 'button',
-          text: { tag: 'plain_text', content: '编辑回复' },
-          type: 'primary',
-          action_type: 'request',
-          value: {
-            action: 'edit_reply',
-            review_id: reviewData.id,
-            app_name: reviewData.app_name,
-            author: reviewData.author
-          }
+          tag: 'column',
+          width: 'weighted',
+          weight: 5,
+          vertical_align: 'top',
+          elements: [
+            {
+              tag: 'div',
+              text: { tag: 'plain_text', content: replyContent }
+            }
+          ]
+        },
+        {
+          tag: 'column',
+          width: 'weighted',
+          weight: 1,
+          vertical_align: 'top',
+          elements: [
+            {
+              tag: 'button',
+              text: { tag: 'plain_text', content: '编辑' },
+              type: 'primary',
+              width: 'fill',
+              size: 'medium',
+              action_type: 'request',
+              value: {
+                action: 'edit_reply',
+                review_id: reviewData.id,
+                app_name: reviewData.app_name,
+                author: reviewData.author
+              }
+            }
+          ]
         }
       ]
     });
@@ -850,14 +872,48 @@ export function buildReviewCardV2(reviewData: {
               vertical_align: 'top',
               elements: [
                 {
-                  tag: 'button',
-                  text: { tag: 'plain_text', content: '更新' },
-                  type: 'primary',
-                  width: 'fill',
-                  size: 'medium',
-                  action_type: 'request',
-                  form_action_type: 'submit',
-                  name: 'update_button'
+                  tag: 'column_set',
+                  horizontal_spacing: '4px',
+                  columns: [
+                    {
+                      tag: 'column',
+                      width: 'weighted',
+                      weight: 1,
+                      elements: [
+                        {
+                          tag: 'button',
+                          text: { tag: 'plain_text', content: '更新' },
+                          type: 'primary',
+                          width: 'fill',
+                          size: 'small',
+                          action_type: 'request',
+                          form_action_type: 'submit',
+                          name: 'update_button'
+                        }
+                      ]
+                    },
+                    {
+                      tag: 'column',
+                      width: 'weighted',
+                      weight: 1,
+                      elements: [
+                        {
+                          tag: 'button',
+                          text: { tag: 'plain_text', content: '取消' },
+                          type: 'default',
+                          width: 'fill',
+                          size: 'small',
+                          action_type: 'request',
+                          value: {
+                            action: 'cancel_edit',
+                            review_id: reviewData.id,
+                            app_name: reviewData.app_name,
+                            author: reviewData.author
+                          }
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -868,25 +924,6 @@ export function buildReviewCardV2(reviewData: {
       direction: 'vertical',
       padding: '4px 0px 4px 0px',
       margin: '0px 0px 0px 0px'
-    });
-
-    // 添加取消按钮
-    card.elements.push({
-      tag: 'action',
-      actions: [
-        {
-          tag: 'button',
-          text: { tag: 'plain_text', content: '取消编辑' },
-          type: 'default',
-          action_type: 'request',
-          value: {
-            action: 'cancel_edit',
-            review_id: reviewData.id,
-            app_name: reviewData.app_name,
-            author: reviewData.author
-          }
-        }
-      ]
     });
 
   } else {
