@@ -1703,4 +1703,76 @@ async function saveIssueReport(
   }
 }
 
+// 🚨 紧急修复API：批量标记历史评论为已推送
+router.post('/emergency/mark-historical-pushed', async (req, res) => {
+  try {
+    logger.info('🚨 执行紧急修复：批量标记历史评论为已推送');
+    
+    const { cutoffDate, dryRun = true } = req.body;
+    const cutoff = cutoffDate ? new Date(cutoffDate) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 默认24小时前
+    
+    // 查询需要标记的评论
+    const { data: reviews, error: queryError } = await db!.client
+      .from('app_reviews')
+      .select('review_id, created_date, title')
+      .lt('created_date', cutoff.toISOString())
+      .or('is_pushed.is.null,is_pushed.eq.false');
+    
+    if (queryError) {
+      throw new Error(`查询失败: ${queryError.message}`);
+    }
+    
+    logger.info(`找到 ${reviews.length} 条需要标记的历史评论`);
+    
+    if (dryRun) {
+      res.json({
+        success: true,
+        dryRun: true,
+        message: `找到 ${reviews.length} 条历史评论待标记`,
+        cutoffDate: cutoff.toISOString(),
+        sampleReviews: reviews.slice(0, 5).map(r => ({
+          id: r.review_id.slice(0, 20) + '...',
+          date: r.created_date,
+          title: r.title?.slice(0, 30) + '...'
+        }))
+      });
+      return;
+    }
+    
+    // 实际执行标记
+    const { error: updateError } = await db!.client
+      .from('app_reviews')
+      .update({ 
+        is_pushed: true, 
+        push_type: 'historical_batch',
+        updated_at: new Date().toISOString()
+      })
+      .lt('created_date', cutoff.toISOString())
+      .or('is_pushed.is.null,is_pushed.eq.false');
+    
+    if (updateError) {
+      throw new Error(`批量更新失败: ${updateError.message}`);
+    }
+    
+    logger.info(`✅ 成功标记 ${reviews.length} 条历史评论为已推送`);
+    
+    res.json({
+      success: true,
+      message: `成功标记 ${reviews.length} 条历史评论为已推送`,
+      updatedCount: reviews.length,
+      cutoffDate: cutoff.toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('🚨 紧急修复失败', { 
+      error: error instanceof Error ? error.message : error 
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '未知错误'
+    });
+  }
+});
+
 export default router;
