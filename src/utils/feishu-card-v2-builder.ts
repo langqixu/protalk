@@ -100,6 +100,7 @@ export interface InputElement {
   default_value?: string;
   width?: 'default' | 'fill' | 'auto';
   max_length?: number;
+  is_multiline?: boolean;
   // 飞书 2.0 新增属性
   margin?: string;
 }
@@ -724,17 +725,19 @@ export function buildReviewCardV2(reviewData: {
   country?: string;        // 🔍 添加国家/地区字段
   card_state?: string;     // 🔄 卡片状态
   message_id?: string;     // 📮 消息ID（用于update_card）
-}): FeishuCardV2 {
+  reply_content?: string;  // 🔄 回复内容（用于编辑状态）
+  hasReply?: boolean;      // 🔄 是否有回复
+}, cardState?: string): FeishuCardV2 {
   const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
   const emptyStars = '☆'.repeat(5 - Math.max(0, Math.min(5, reviewData.rating || 0)));
   
   // 动态确定卡片状态
   const hasReply = reviewData.developer_response && reviewData.developer_response.body;
-  const cardState = hasReply ? 'replied' : 'initial';
+  const finalCardState = cardState || (hasReply ? 'replied' : 'initial');
   
   logger.debug('🚀 [v3 DESIGN] 构建新版评论卡片', { 
     reviewId: reviewData.id,
-    cardState,
+    cardState: finalCardState,
     hasReply
   });
 
@@ -783,7 +786,7 @@ export function buildReviewCardV2(reviewData: {
   card.elements.push({ tag: 'hr' });
 
   // 根据状态添加不同的交互元素
-  if (cardState === 'replied') {
+  if (finalCardState === 'replied') {
     // 已回复状态：显示回复内容 + 编辑按钮
     const replyContent = reviewData.developer_response?.body || '暂无回复内容';
     
@@ -810,6 +813,88 @@ export function buildReviewCardV2(reviewData: {
       ]
     });
     
+  } else if (finalCardState === 'editing_reply') {
+    // 编辑回复状态：显示预填充的输入框 + 更新/取消按钮
+    const currentReply = reviewData.reply_content || reviewData.developer_response?.body || '';
+    
+    card.elements.push({
+      tag: 'form',
+      name: 'edit_reply_form',
+      elements: [
+        {
+          tag: 'column_set',
+          horizontal_spacing: '8px',
+          horizontal_align: 'left',
+          columns: [
+            {
+              tag: 'column',
+              width: 'weighted',
+              weight: 5,
+              vertical_align: 'top',
+              elements: [
+                {
+                  tag: 'input',
+                  name: 'reply_content',
+                  placeholder: { tag: 'plain_text', content: '编辑您的回复...' },
+                  default_value: currentReply,
+                  is_multiline: true,
+                  max_length: 4000,
+                  margin: '0px 0px 0px 0px'
+                }
+              ]
+            },
+            {
+              tag: 'column',
+              width: 'weighted',
+              weight: 1,
+              vertical_align: 'top',
+              elements: [
+                {
+                  tag: 'button',
+                  text: { tag: 'plain_text', content: '更新' },
+                  type: 'primary',
+                  width: 'fill',
+                  size: 'medium',
+                  action_type: 'request',
+                  form_action_type: 'submit',
+                  value: {
+                    action: 'update_reply',
+                    review_id: reviewData.id,
+                    app_name: reviewData.app_name,
+                    author: reviewData.author
+                  },
+                  name: 'update_button'
+                }
+              ]
+            }
+          ],
+          margin: '0px 0px 0px 0px'
+        }
+      ],
+      direction: 'vertical',
+      padding: '4px 0px 4px 0px',
+      margin: '0px 0px 0px 0px'
+    });
+
+    // 添加取消按钮
+    card.elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '取消编辑' },
+          type: 'default',
+          action_type: 'request',
+          value: {
+            action: 'cancel_edit',
+            review_id: reviewData.id,
+            app_name: reviewData.app_name,
+            author: reviewData.author
+          }
+        }
+      ]
+    });
+
   } else {
     // 初始状态：显示输入框 + 提交按钮（使用飞书 2.0 格式）
     card.elements.push({
