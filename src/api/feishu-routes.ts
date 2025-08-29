@@ -550,7 +550,88 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
 });
 
 /**
- * 处理卡片交互事件
+ * 飞书 Webhook 事件接收端点
+ * POST /feishu/webhook
+ * 接收飞书官方发送的所有事件，包括卡片交互事件
+ */
+router.post('/webhook', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const event = req.body;
+    
+    logger.info('收到飞书Webhook事件', { 
+      type: event.type,
+      eventType: event.event?.type,
+      eventId: event.event_id,
+      timestamp: new Date().toISOString()
+    });
+
+    // URL验证事件
+    if (event.type === 'url_verification') {
+      logger.info('处理URL验证事件', { challenge: event.challenge });
+      res.json({ challenge: event.challenge });
+      return;
+    }
+
+    // 卡片交互事件
+    if (event.type === 'event_callback' && event.event?.type === 'card_action') {
+      logger.info('收到卡片交互事件', { 
+        action: event.event.action,
+        user_id: event.event.operator?.user_id,
+        message_id: event.event.context?.message_id
+      });
+
+      // 立即响应飞书服务器
+      res.json({ 
+        success: true,
+        code: 0,
+        message: 'OK'
+      });
+
+      // 异步处理卡片交互
+      const cardEvent = event.event;
+      if (cardEvent.action && cardEvent.action.value) {
+        // 从输入框中获取用户输入的回复内容
+        const replyContent = cardEvent.action.form_value?.reply_content || cardEvent.action.value.reply_content;
+        
+        // 构建完整的action值，包含用户输入
+        const actionValue = {
+          ...cardEvent.action.value,
+          reply_content: replyContent,
+          trigger_id: cardEvent.trigger_id // 用于打开模态框
+        };
+        
+        await handleCardActionV1(
+          actionValue, 
+          cardEvent.operator?.user_id,
+          cardEvent.context?.message_id
+        );
+      }
+      return;
+    }
+
+    // 其他事件类型
+    if (event.type === 'event_callback') {
+      const result = await feishuService!.handleFeishuEvent(event);
+      res.json(result);
+      return;
+    }
+
+    // 默认响应
+    res.json({ 
+      success: true,
+      code: 0,
+      message: 'Event received'
+    });
+
+  } catch (error) {
+    handleError(res, error, '处理飞书Webhook事件');
+  }
+});
+
+/**
+ * 处理卡片交互事件 (兼容旧版本)
  * POST /feishu/card-actions
  * Body: { action: object, user_id: string, message_id: string }
  */
