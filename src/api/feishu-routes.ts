@@ -921,8 +921,8 @@ router.post('/events', async (req: Request, res: Response) => {
             hasValue: !!event?.action?.value
           });
           
-          // 特殊处理卡片交互事件
-          if (event?.event_type === 'card.action.trigger') {
+          // 特殊处理卡片交互事件（兼容新旧版本）
+          if (event?.event_type === 'card.action.trigger' || event?.event_type === 'card.action.trigger_v1') {
             await handleCardActionEventV1(event);
           } else if (event?.event_type === 'card.form.submit') {
             // 处理模态框表单提交事件
