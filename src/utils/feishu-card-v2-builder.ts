@@ -234,9 +234,10 @@ export class FeishuCardV2Builder {
       button.action_type = 'link';
     } else if (options.actionType) {
       button.action_type = options.actionType;
+    } else {
+      // 默认设置为 'request' 来触发回调事件
+      button.action_type = 'request';
     }
-    // 如果没有明确指定 actionType 且没有 url，则不设置 action_type
-    // 这样飞书会使用默认的 callback 行为
 
     if (options.value !== undefined) {
       button.value = options.value;
@@ -279,9 +280,10 @@ export class FeishuCardV2Builder {
         button.action_type = 'link';
       } else if (btn.actionType) {
         button.action_type = btn.actionType;
+      } else {
+        // 默认设置为 'request' 来触发回调事件
+        button.action_type = 'request';
       }
-      // 如果没有明确指定 actionType 且没有 url，则不设置 action_type
-      // 这样飞书会使用默认的 callback 行为
 
       if (btn.value !== undefined) {
         button.value = btn.value;
