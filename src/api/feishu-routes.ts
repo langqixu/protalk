@@ -1070,9 +1070,7 @@ async function handleCardActionV1(
       case 'cancel_edit':
         await handleCancelReply(review_id, messageId);
         break;
-      case 'report_issue':
-        await handleReportIssue(actionValue, userId);
-        break;
+
       case 'view_details':
         await handleViewDetailsV1(actionValue, userId);
         break;
@@ -1504,44 +1502,7 @@ async function handleCancelReply(reviewId: string, messageId: string): Promise<v
   }
 }
 
-/**
- * 处理"报告问题"按钮点击 - 打开模态对话框
- */
-async function handleReportIssue(actionValue: any, userId: string): Promise<void> {
-  try {
-    if (!feishuService) {
-      logger.error('飞书服务未初始化');
-      return;
-    }
 
-    const { review_id, app_name, author, trigger_id } = actionValue;
-    
-    logger.info('处理报告问题交互', { review_id, app_name, author, userId });
-
-    // 创建报告问题的模态对话框
-    const { createReportIssueModal } = require('../utils/feishu-card-v2-builder');
-    const modalData = createReportIssueModal({
-      review_id,
-      app_name,
-      author
-    });
-
-    // 打开模态对话框
-    if (trigger_id) {
-      await feishuService!.openModal(trigger_id, modalData);
-      logger.info('报告问题模态对话框打开成功', { review_id, userId });
-    } else {
-      logger.warn('缺少 trigger_id，无法打开模态对话框', { review_id, userId });
-    }
-
-  } catch (error) {
-    logger.error('处理报告问题失败', { 
-      actionValue,
-      userId, 
-      error: error instanceof Error ? error.message : error 
-    });
-  }
-}
 
 // ================================
 // 数据库操作辅助函数
