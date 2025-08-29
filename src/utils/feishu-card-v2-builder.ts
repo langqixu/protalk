@@ -657,35 +657,30 @@ export function buildReviewCardV2(reviewData: {
   // 分隔线
   builder.addHr();
 
-  // 🎯 交互区域：直接外露的输入框和按钮
+  // 🎯 交互区域：回复按钮（暂时移除输入框以修复400错误）
   builder.addDiv('💬 **回复评论**');
-
-  // 🔧 尝试不同的输入框实现方法 - 直接构建输入元素
-  const inputElement: any = {
-    tag: 'input',
-    name: 'reply_content',
-    required: true,
-    placeholder: {
-      tag: 'plain_text',
-      content: '感谢您的反馈！我们会认真考虑您的建议...'
-    },
-    max_length: 1000,
-    width: 'fill'
-  };
   
-  // 直接添加到elements
-  (builder as any).card.elements.push(inputElement);
+  // 说明文字
+  builder.addDiv('点击按钮回复此评论，将弹出输入对话框');
 
-  // 🎨 简化的提交按钮
+  // 🎨 交互按钮组
   builder.addActionGroup([
     {
-      text: '📤 提交回复',
+      text: '💬 回复评论',
       type: 'primary',
       value: {
-        action: 'submit_reply',
+        action: 'reply_review',
         review_id: reviewData.id,
         app_name: reviewData.app_name,
         author: reviewData.author
+      }
+    },
+    {
+      text: '📊 查看详情',
+      type: 'default',
+      value: {
+        action: 'view_details',
+        review_id: reviewData.id
       }
     }
   ]);
