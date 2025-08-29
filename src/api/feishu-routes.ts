@@ -1186,7 +1186,7 @@ async function handleCardActionV1(
         logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
         if (feishuService && reply_content) {
           // 构建回复后的评论卡片（保持原有结构，但显示为已回复状态）
-          const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
+          const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
           
           // 模拟测试评论数据，状态更新为已回复
           const reviewData = {
