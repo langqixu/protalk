@@ -1006,6 +1006,9 @@ async function handleCardActionEventV1(event: any, isSchema2 = false): Promise<v
       hasFormValue: !!form_value,
       actionValue: action?.value,
       actionTag: action?.tag,
+      actionName: action?.name,
+      actionFormValue: action?.form_value,
+      eventFormValue: form_value,
       fullEvent: JSON.stringify(event).substring(0, 500) + '...'
     });
 
@@ -1028,9 +1031,9 @@ async function handleCardActionEventV1(event: any, isSchema2 = false): Promise<v
         });
         
         await handleCardActionV1(actionValue, user_id, message_id);
-      } else if (action.tag === 'button' && action.form_value) {
+      } else if (action.tag === 'button' && (action.form_value || form_value)) {
         // 表单提交按钮（无 value 字段，但有 form_value）
-        const replyContent = action.form_value?.reply_content;
+        const replyContent = action.form_value?.reply_content || form_value?.reply_content;
         const buttonName = action.name;
         
         logger.info('🎯 收到表单提交按钮点击！', { 
