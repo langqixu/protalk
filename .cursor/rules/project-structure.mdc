@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+description: "Defines the project's directory structure and the purpose of each layer, ensuring consistent organization."
+---
+# Project Structure
+
+This project uses a modular, layered architecture. Adhere to the following structure to maintain clarity and separation of concerns.
+
+-   **`src/`**: Main application source code.
+    -   **`src/api/`**: Contains route definitions and request/response handling. It acts as the entry point for API requests and should delegate business logic to the `services` layer. See [feishu-routes.ts](mdc:src/api/feishu-routes.ts) for an example.
+    -   **`src/services/`**: Houses the core business logic. Services coordinate functionality from different modules to perform specific tasks.
+    -   **`src/modules/`**: Contains self-contained feature modules (e.g., [feishu](mdc:src/modules/feishu/), [fetcher](mdc:src/modules/fetcher/), [processor](mdc:src/modules/processor/)). Each module encapsulates a specific domain of functionality.
+    -   **`src/utils/`**: For shared, reusable helper functions that are not tied to any specific business logic.
+    -   **`src/types/`**: Holds shared TypeScript type definitions and interfaces, like in [index.ts](mdc:src/types/index.ts).
+    -   **`src/config/`**: Manages application configuration. See [index.ts](mdc:src/config/index.ts).
+-   **Configuration**: Sensitive keys must be managed through environment variables. The [env.example](mdc:env.example) file serves as a template for all required variables.

@@ -6,6 +6,9 @@ const router = Router();
 
 let feishuService: FeishuServiceV1 | null = null;
 
+// 测试场景回复内容缓存
+const testReplyCache = new Map<string, string>();
+
 /**
  * 初始化飞书v1服务
  */
@@ -1206,6 +1209,10 @@ async function handleCardActionV1(
         // 🧪 处理表单提交测试 - 模拟真实的评论回复流程
         logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
         if (feishuService && reply_content) {
+          // 更新测试回复缓存
+          const reviewId = actionValue.review_id || messageId;
+          testReplyCache.set(reviewId, reply_content);
+          logger.info('🧪 初始提交更新测试回复缓存', { reviewId, reply_content });
           // 构建回复后的评论卡片（保持原有结构，但显示为已回复状态）
           const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
           
@@ -1578,8 +1585,9 @@ async function handleEditReply(reviewId: string, messageId: string): Promise<voi
     
     let review;
     if (isTestScenario) {
-      // 测试场景：使用模拟数据
-      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId });
+      // 测试场景：使用模拟数据，从缓存获取最新回复内容
+      const latestReply = testReplyCache.get(reviewId) || 'hello'; // 默认回复内容
+      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId, latestReply });
       review = {
         id: reviewId,
         app_name: '潮汐 for iOS',
@@ -1590,7 +1598,7 @@ async function handleEditReply(reviewId: string, messageId: string): Promise<voi
         created_date: '2025/8/29 17:59:58',
         version: '1.0.0',
         region: 'CN',
-        reply_content: 'hello', // 当前回复内容
+        reply_content: latestReply, // 使用缓存的最新回复内容
         reply_date: new Date().toISOString(),
         hasReply: true
       };
@@ -1692,7 +1700,10 @@ async function handleUpdateReply(reviewId: string, replyContent: string, message
       // 更新数据库中的卡片状态
       await updateReviewCardState(reviewId, 'replied', messageId);
     } else {
-      // 测试场景：直接更新卡片到已回复状态
+      // 测试场景：更新缓存并直接更新卡片到已回复状态
+      testReplyCache.set(reviewId, replyContent); // 更新缓存
+      logger.info('🧪 更新测试回复缓存', { reviewId, replyContent });
+      
       const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
       const updatedCard = buildReviewCardV2(review, 'replied');
       await feishuService!.updateCardMessage(messageId, updatedCard);
@@ -1727,8 +1738,9 @@ async function handleCancelReply(reviewId: string, messageId: string): Promise<v
     let originalState;
     
     if (isTestScenario) {
-      // 测试场景：使用模拟数据，恢复到已回复状态
-      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId });
+      // 测试场景：使用模拟数据，恢复到已回复状态，从缓存获取最新回复内容
+      const latestReply = testReplyCache.get(reviewId) || 'hello'; // 默认回复内容
+      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId, latestReply });
       review = {
         id: reviewId,
         app_name: '潮汐 for iOS',
@@ -1739,7 +1751,7 @@ async function handleCancelReply(reviewId: string, messageId: string): Promise<v
         created_date: '2025/8/29 18:10:01',
         version: '1.0.0',
         region: 'CN',
-        reply_content: 'hello', // 恢复到之前的回复内容
+        reply_content: latestReply, // 使用缓存的最新回复内容
         reply_date: new Date().toISOString(),
         hasReply: true
       };
