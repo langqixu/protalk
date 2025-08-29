@@ -11,6 +11,7 @@ import { AppReview } from '../types';
 //   createCompactReviewCard 
 // } from './review-card-templates';
 import logger from './logger';
+import { buildReviewCardV2New } from './feishu-card-v2-builder-new';
 
 // ================================
 // 富文本消息类型定义
@@ -95,7 +96,7 @@ export class RichTextFactory {
           id: review.reviewId,
           app_name: this.getAppNameById(review.appId) || '潮汐 for iOS',
           rating: review.rating,
-          title: review.title,
+          title: review.title || undefined,
           content: review.body || '',
           author: review.reviewerNickname || '匿名用户',
           date: review.createdDate.toISOString(),
@@ -109,7 +110,7 @@ export class RichTextFactory {
           } : undefined
         };
       
-      return buildReviewCardV2(reviewData);
+      return buildReviewCardV2New(reviewData);
     } catch (error) {
       logger.error('创建评论卡片失败', { 
         error: error instanceof Error ? error.message : error,
