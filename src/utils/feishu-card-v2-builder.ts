@@ -889,17 +889,17 @@ export function buildReviewCardV2(reviewData: {
     // 🔸 初始状态 - 直接显示回复输入框
     builder.addDiv('💬 **开发者回复**');
     
-    // 直接显示回复输入框和提交按钮
-    builder.addForm('reply_form', [
-      {
-        tag: 'input',
-        name: 'reply_content',
-        placeholder: { tag: 'plain_text', content: '请输入您的回复内容...' },
-        required: true,
-        max_length: 1000,
-        width: 'fill'
-      } as InputElement
-    ], {
+    // 直接显示回复输入框和提交按钮（使用正确的表单结构）
+    const inputElement: InputElement = {
+      tag: 'input',
+      name: 'reply_content',
+      placeholder: { tag: 'plain_text', content: '请输入您的回复内容...' },
+      required: true,
+      max_length: 1000,
+      width: 'fill'
+    };
+    
+    builder.addForm('reply_form', [inputElement], {
       submitButton: {
         text: '📤 提交回复',
         type: 'primary',
