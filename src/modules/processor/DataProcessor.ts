@@ -18,16 +18,20 @@ export class DataProcessor {
         newReviews.push(review);
         logger.debug('识别到新评论', { reviewId: review.reviewId, appId: review.appId });
       } else {
-        // 已存在的评论，检查是否有更新
-        updatedReviews.push(review);
-        logger.debug('识别到已存在评论', { reviewId: review.reviewId, appId: review.appId });
+        // 🚨 修复：已存在的评论不应该都被当作更新，需要实际检查内容是否变化
+        // 暂时跳过，避免重复推送历史评论
+        logger.debug('跳过已存在评论（避免重复推送）', { reviewId: review.reviewId, appId: review.appId });
+        
+        // TODO: 未来可以实现真正的内容比较逻辑，检查评论是否真的有更新
+        // 例如：比较 responseBody, rating, body 等字段是否有变化
       }
     }
 
     logger.info('数据处理完成', { 
       total: apiReviews.length,
       new: newReviews.length, 
-      updated: updatedReviews.length 
+      updated: updatedReviews.length,
+      skipped: apiReviews.length - newReviews.length - updatedReviews.length
     });
 
     return {
