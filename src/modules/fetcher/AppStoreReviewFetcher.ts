@@ -16,18 +16,9 @@ interface AppStoreReviewResponse {
       reviewerNickname: string;
       createdDate: string;
       isEdited: boolean;
-      // 🔍 扩展字段：根据App Store Connect API文档补充
-      territory?: string;           // 国家/地区代码 (如: US, CN, JP)
-      storefront?: string;          // 商店前台标识符
     };
     relationships?: {
       response?: {
-        data?: {
-          type: string;
-          id: string;
-        };
-      };
-      appStoreVersion?: {
         data?: {
           type: string;
           id: string;
@@ -41,9 +32,6 @@ interface AppStoreReviewResponse {
     attributes: {
       body: string;
       createdDate: string;
-      // 对于 appStoreVersions
-      versionString?: string;       // 版本号
-      // 对于 customerReviewResponses
     };
   }>;
   links?: {
@@ -102,8 +90,8 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
     logger.info('开始同步App Store评论', { appId });
     
     const allReviews: AppReview[] = [];
-    // 🔍 增强API调用：包含更多相关数据
-    let nextUrl: string | undefined = `/v1/apps/${appId}/customerReviews?sort=-createdDate&limit=100&include=response,appStoreVersion&fields[customerReviews]=rating,title,body,reviewerNickname,createdDate,isEdited,territory&fields[appStoreVersions]=versionString`;
+    // 🔍 修复API调用：使用App Store Connect API支持的基本参数
+    let nextUrl: string | undefined = `/v1/apps/${appId}/customerReviews?sort=-createdDate&limit=100&include=response`;
 
     try {
       while (nextUrl) {
@@ -159,9 +147,8 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
   private transformReviews(response: AppStoreReviewResponse): AppReview[] {
     const reviews: AppReview[] = [];
     const responses = new Map<string, { body: string; createdDate: string }>();
-    const versions = new Map<string, string>(); // 存储版本信息
 
-    // 处理包含的数据
+    // 处理回复数据
     if (response.included) {
       for (const item of response.included) {
         if (item.type === 'customerReviewResponses') {
@@ -169,9 +156,6 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
             body: item.attributes.body,
             createdDate: item.attributes.createdDate
           });
-        } else if (item.type === 'appStoreVersions' && item.attributes.versionString) {
-          // 🔍 处理应用版本信息
-          versions.set(item.id, item.attributes.versionString);
         }
       }
     }
@@ -189,25 +173,15 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
           createdDate: new Date(item.attributes.createdDate),
           isEdited: item.attributes.isEdited,
           
-          // 🔍 新增扩展字段
-          territoryCode: item.attributes.territory || undefined,
-          appVersion: undefined, // 先设为undefined，下面会尝试从relationships获取
+          // 暂时设为undefined，等API支持后再获取
+          territoryCode: undefined,
+          appVersion: undefined,
           
           firstSyncAt: new Date(),
           isPushed: false,
           createdAt: new Date(),
           updatedAt: new Date()
         };
-
-        // 🔍 尝试获取版本信息
-        if (item.relationships?.appStoreVersion?.data?.id) {
-          const versionId = item.relationships.appStoreVersion.data.id;
-          const versionString = versions.get(versionId);
-          if (versionString) {
-            review.appVersion = versionString;
-            logger.debug('找到版本信息', { reviewId: item.id, version: versionString });
-          }
-        }
 
         // 添加回复信息（如果有）
         const responseData = responses.get(item.id);
@@ -218,8 +192,6 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
 
         logger.debug('转换评论数据', {
           reviewId: review.reviewId,
-          territory: review.territoryCode,
-          version: review.appVersion,
           hasResponse: !!review.responseBody
         });
 
