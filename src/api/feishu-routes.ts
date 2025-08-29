@@ -1924,4 +1924,55 @@ router.post('/test/simple-button', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * 测试无回复评论的卡片显示
+ * POST /feishu/test/no-reply-card
+ */
+router.post('/test/no-reply-card', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    logger.info('🧪 发送无回复评论测试卡片');
+
+    // 创建一个确保没有回复的测试评论
+    const testReview = {
+      id: `test_no_reply_${Date.now()}`,
+      reviewId: `test_no_reply_${Date.now()}`,
+      app_name: '潮汐 for iOS',
+      rating: 1,
+      title: '[测试] 无回复状态',
+      content: '这是一个测试评论，应该显示输入框和提交按钮',
+      author: '测试用户',
+      date: new Date().toISOString(),
+      store_type: 'ios',
+      version: '2.3.4',
+      country: 'US',
+      // 确保没有 developer_response
+      developer_response: null,
+      responseBody: null,
+      response_body: null
+    };
+
+    // 直接推送这个测试评论
+    const chatId = await feishuService!.feishuBot.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
+    await feishuService!.pushReviewToChat(chatId, testReview);
+
+    logger.info('✅ 无回复评论测试卡片发送成功');
+
+    res.json({
+      success: true,
+      message: '无回复评论测试卡片发送成功',
+      testReview: {
+        id: testReview.id,
+        hasReply: !!testReview.developer_response,
+        title: testReview.title
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送无回复测试卡片');
+  }
+});
+
 export default router;
