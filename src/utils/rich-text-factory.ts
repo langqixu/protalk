@@ -59,6 +59,20 @@ export interface ServiceStatus {
 // ================================
 
 export class RichTextFactory {
+  /**
+   * 根据appId获取应用名称
+   */
+  private static getAppNameById(appId: string): string {
+    try {
+      const { loadConfig } = require('../config');
+      const config = loadConfig();
+      const store = config.stores.find((s: any) => s.appId === appId);
+      return store?.name || '未知应用';
+    } catch (error) {
+      logger.warn('获取应用名称失败', { appId, error });
+      return '未知应用';
+    }
+  }
   
   /**
    * 创建App Store评论富文本卡片
@@ -68,17 +82,22 @@ export class RichTextFactory {
       // 使用修复后的 buildReviewCardV2 函数
       const { buildReviewCardV2 } = require('./feishu-card-v2-builder');
       
-      // 转换数据格式以匹配 buildReviewCardV2 的期望格式
-      const reviewData = {
-        id: review.reviewId,
-        app_name: '测试应用',  // 临时固定值，实际使用时应从配置或其他地方获取
-        rating: review.rating,
-        title: review.title,
-        content: review.body || '',
-        author: review.reviewerNickname,
-        date: review.createdDate.toISOString(),
-        store_type: 'ios'
-      };
+              // 🔧 修复字段映射：确保所有字段正确对应
+        const reviewData = {
+          id: review.reviewId,
+          app_name: this.getAppNameById(review.appId) || '潮汐 for iOS',
+          rating: review.rating,
+          title: review.title,
+          content: review.body || '',
+          author: review.reviewerNickname || '匿名用户',
+          date: review.createdDate.toISOString(),
+          store_type: 'ios',
+          helpful_count: review.helpful_count,
+          developer_response: review.responseBody ? {
+            body: review.responseBody,
+            date: review.responseDate
+          } : undefined
+        };
       
       return buildReviewCardV2(reviewData);
     } catch (error) {

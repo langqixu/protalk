@@ -542,16 +542,22 @@ export function buildReviewCardV2(reviewData: {
   developer_response?: any;
 }): FeishuCardV2 {
   const stars = '⭐'.repeat(Math.max(0, Math.min(5, reviewData.rating || 0)));
+  const emptyStars = '☆'.repeat(5 - Math.max(0, Math.min(5, reviewData.rating || 0)));
   const storeIcon = reviewData.store_type === 'ios' ? '📱' : '🤖';
   
-  // 选择颜色主题
+  // 🎨 智能颜色主题和情感表达
   let template: CardHeader['template'] = 'blue';
+  let ratingEmoji = '😐';
+  
   if (reviewData.rating >= 4) {
     template = 'green';
+    ratingEmoji = '😊';
   } else if (reviewData.rating >= 3) {
     template = 'yellow';
+    ratingEmoji = '🙂';
   } else {
     template = 'red';
+    ratingEmoji = '😟';
   }
 
   const builder = createCardBuilder()
@@ -565,39 +571,90 @@ export function buildReviewCardV2(reviewData: {
         content: `${storeIcon} ${reviewData.app_name} - 新评论通知` 
       },
       template
-    })
-    .addDiv(`**评分**: ${stars} (${reviewData.rating}/5)`)
-    .addDiv(`**用户**: ${reviewData.author || '匿名'}`)
-    .addDiv(`**时间**: ${new Date(reviewData.date).toLocaleString('zh-CN')}`)
-    .addDiv(`**内容**: ${reviewData.content || '无内容'}`);
+    });
 
-  // 如果有开发者回复，显示它
-  if (reviewData.developer_response && reviewData.developer_response.body) {
-    builder.addDiv(`**开发者回复**: ${reviewData.developer_response.body}`);
+  // 🌟 优雅的评分展示
+  builder.addDiv(`${ratingEmoji} **评分**: ${stars}${emptyStars} (${reviewData.rating}/5)`);
+
+  // 📋 基础信息区域 - 简化为两行显示
+  builder.addDiv(`**👤 用户**: ${reviewData.author || '匿名用户'}`);
+  builder.addDiv(`**📅 时间**: ${new Date(reviewData.date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })}`);
+
+  // 📝 评论标题（如果有）
+  if (reviewData.title) {
+    builder.addDiv(`**📝 标题**: ${reviewData.title}`);
   }
 
-  // 添加交互按钮 - 注意：这里不设置actionType，让飞书使用默认的回调行为
+  // 💬 评论内容区域 - 使用note突出显示
+  builder.addNote([
+    {
+      type: 'text',
+      content: `💭 **评论内容**:\n${reviewData.content || '暂无文字评论，仅评分'}`
+    }
+  ]);
+
+  // 🔄 开发者回复区域
+  if (reviewData.developer_response && reviewData.developer_response.body) {
+    builder.addNote([
+      {
+        type: 'text',
+        content: `🔄 **开发者回复**: ${reviewData.developer_response.body}`
+      }
+    ]);
+  }
+
+  // 分隔线
+  builder.addHr();
+
+  // 🎯 交互输入区域
+  builder.addDiv('💬 **快速回复评论**');
+
+  builder.addInput('reply_content', {
+    placeholder: '感谢您的反馈！我们会认真考虑您的建议...',
+    required: true,
+    maxLength: 1000
+  });
+
+  // 🎨 增强的交互按钮组
   builder.addActionGroup([
     {
-      text: '💬 回复评论',
+      text: '📤 提交回复',
       type: 'primary',
-      // 不设置 actionType，使用默认回调行为
       value: {
-        action: 'reply_review',
+        action: 'submit_reply',
         review_id: reviewData.id,
-        app_name: reviewData.app_name
+        app_name: reviewData.app_name,
+        author: reviewData.author
       }
     },
     {
       text: '📊 查看详情',
       type: 'default',
-      // 不设置 actionType，使用默认回调行为
       value: {
         action: 'view_details',
         review_id: reviewData.id
       }
+    },
+    {
+      text: '🏷️ 添加标签',
+      type: 'default',
+      value: {
+        action: 'add_tags',
+        review_id: reviewData.id
+      }
     }
   ]);
+
+  // 📈 附加信息
+  if (reviewData.helpful_count !== undefined && reviewData.helpful_count > 0) {
+    builder.addDiv(`👍 ${reviewData.helpful_count} 人认为此评论有帮助`);
+  }
 
   return builder.build();
 }

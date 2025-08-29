@@ -470,14 +470,14 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
         break;
       
       case 'review':
-        // 创建模拟评论数据（使用正确的 AppReview 字段名）
+        // 🔧 优化模拟评论数据，使用真实appId和更丰富的测试内容
         const mockReview = {
           reviewId: 'test_review_' + Date.now(),
-          appId: '1234567890',
+          appId: '1077776989', // 潮汐应用的真实ID
           rating: 5,
-          title: '这个应用真的很棒！',
-          body: '我已经使用这个应用几个月了，它真的改变了我的工作流程。界面设计很直观，功能也很完善。强烈推荐给所有需要类似功能的用户！',
-          reviewerNickname: '满意用户123',
+          title: '优秀的专注应用！',
+          body: '潮汐真的是一个非常棒的专注应用！界面设计简洁美观，各种自然声音很舒缓，帮助我在工作和学习时保持专注。特别喜欢番茄钟功能，让我的时间管理更加高效。强烈推荐给需要提高专注力的朋友们！',
+          reviewerNickname: '专注达人小张',
           createdDate: new Date(),
           isEdited: false,
           territoryCode: 'CN',

@@ -548,6 +548,21 @@ export class FeishuBotV1 {
   }
 
   /**
+   * 根据appId获取应用名称
+   */
+  private getAppNameById(appId: string): string {
+    try {
+      const { loadConfig } = require('../../config');
+      const config = loadConfig();
+      const store = config.stores.find((s: any) => s.appId === appId);
+      return store?.name || '未知应用';
+    } catch (error) {
+      logger.warn('获取应用名称失败', { appId, error });
+      return '未知应用';
+    }
+  }
+
+  /**
    * 创建App Store评论推送卡片（使用新的v2组件系统）
    */
   createReviewCard(review: any): any {
@@ -555,31 +570,35 @@ export class FeishuBotV1 {
       // 使用统一的 v2 卡片构建器
       const { buildReviewCardV2 } = require('../../utils/feishu-card-v2-builder');
       
-      // 转换数据格式以匹配新的接口
+      // 🔑 修复字段映射：从AppReview接口字段正确映射到卡片数据
       const reviewData = {
-        id: review.id || `review_${Date.now()}`,
-        app_name: review.app_name || '未知应用',
-        app_id: review.app_id || '',
+        id: review.reviewId || review.id || `review_${Date.now()}`,
+        app_name: this.getAppNameById(review.appId) || '潮汐 for iOS', // 从配置中获取应用名称
+        app_id: review.appId || review.app_id || '',
         title: review.title,
-        content: review.content || '',
+        content: review.body || review.content || '', // 使用body字段
         rating: review.rating || 0,
-        author: review.author,
+        author: review.reviewerNickname || review.author || '匿名', // 使用reviewerNickname字段
         store_type: review.store_type || 'ios',
         version: review.version,
-        date: review.date,
-        country: review.country,
+        date: review.createdDate ? review.createdDate.toISOString() : (review.date || new Date().toISOString()), // 使用createdDate字段
+        country: review.territoryCode || review.country,
         verified_purchase: review.verified_purchase,
         helpful_count: review.helpful_count,
-        developer_response: review.developer_response
+        developer_response: review.responseBody ? {
+          body: review.responseBody,
+          date: review.responseDate
+        } : review.developer_response
       };
 
       return buildReviewCardV2(reviewData);
     } catch (error) {
       logger.error('使用v2卡片构建器失败，降级到简单模板', { error: error instanceof Error ? error.message : error });
       
-      // 降级到简单卡片
+      // 🔑 降级卡片也使用正确的字段映射
       const stars = '⭐'.repeat(Math.max(0, Math.min(5, review.rating || 0)));
-      const storeIcon = review.store_type === 'ios' ? '📱' : '🤖';
+      const storeIcon = 'ios' === 'ios' ? '📱' : '🤖';
+      const appName = this.getAppNameById(review.appId) || '潮汐 for iOS';
       
       return {
         config: {
@@ -589,7 +608,7 @@ export class FeishuBotV1 {
         header: {
           title: {
             tag: "plain_text",
-            content: `${storeIcon} ${review.app_name} - 新评论通知`
+            content: `${storeIcon} ${appName} - 新评论通知`
           },
           template: review.rating >= 4 ? "green" : review.rating >= 3 ? "yellow" : "red"
         },

@@ -28,6 +28,7 @@ export interface AppReview {
   territoryCode?: string;      // 国家/地区代码
   appVersion?: string;         // 应用版本
   reviewState?: string;        // 评论状态
+  helpful_count?: number;      // 有帮助评论数（用于卡片显示）
   
   // 审计字段
   createdAt: Date;
