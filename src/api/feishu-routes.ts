@@ -888,6 +888,9 @@ router.post('/send-to', async (req: Request, res: Response) => {
 router.post('/events', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
+  // 🔧 DEBUG: 打印所有原始事件
+  console.log('🚨 RAW EVENT:', JSON.stringify(req.body, null, 2));
+  
   try {
     const { challenge, type, event } = req.body;
 
@@ -1015,7 +1018,9 @@ async function handleCardActionV1(
   messageId: string
 ): Promise<void> {
   try {
-    const { action, review_id, app_name, author, reply_content } = actionValue;
+    // 兼容新的简化格式 {a: "action"} 和旧格式 {action: "action"}
+    const action = actionValue.a || actionValue.action;
+    const { review_id, app_name, author, reply_content } = actionValue;
     
     logger.info('处理卡片交互动作 (v1)', { 
       action, 
@@ -1028,6 +1033,27 @@ async function handleCardActionV1(
     });
 
     switch (action) {
+      case 'ping':
+        // 🧪 处理极简测试按钮
+        logger.info('🎯 收到测试按钮点击！', { actionValue, userId, messageId });
+        // 简单回复确认收到
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 按钮测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `按钮点击事件成功收到！时间戳：${actionValue.t}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
       case 'reply_review':
         await handleReplyReview(review_id, messageId);
         break;
@@ -1849,6 +1875,53 @@ router.post('/emergency/mark-historical-pushed', async (req: Request, res: Respo
       success: false,
       error: error instanceof Error ? error.message : '未知错误'
     });
+  }
+});
+
+// 🧪 极简按钮测试端点
+router.post('/test/simple-button', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    logger.info('🧪 发送极简按钮测试卡片');
+
+    const simpleCard = {
+      config: { wide_screen_mode: true },
+      header: {
+        title: { tag: 'plain_text', content: '🧪 按钮测试卡片' },
+        template: 'blue'
+      },
+      elements: [
+        {
+          tag: 'div',
+          text: { tag: 'plain_text', content: '这是一个按钮测试卡片，请点击下面的按钮测试交互功能。' }
+        },
+        {
+          tag: 'action',
+          actions: [
+            {
+              tag: 'button',
+              text: { tag: 'plain_text', content: '🎯 测试按钮' },
+              type: 'primary',
+              action_type: 'request',
+              value: { a: 'ping', t: Date.now() }
+            }
+          ]
+        }
+      ]
+    };
+
+    const chatId = await feishuService!.getFirstChatId();
+    await feishuService!.sendCardMessage(chatId!, simpleCard);
+
+    res.json({
+      success: true,
+      message: '极简测试卡片发送成功',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送测试卡片');
   }
 });
 
