@@ -20,6 +20,9 @@ export class MockDataManager {
    * 初始化一些示例数据用于测试
    */
   private initializeSampleData() {
+    // 预加载常用测试数据，避免服务重启后丢失
+    this.loadCommonTestData();
+    
     const sampleReviews: ReviewDTO[] = [
       {
         id: 'mock_review_001',
@@ -179,5 +182,43 @@ export class MockDataManager {
       logger.error('MockDataManager: 无法删除回复，评论未找到', { reviewId });
       throw new Error(`Review ${reviewId} not found`);
     }
+  }
+
+  /**
+   * 预加载常用测试数据，避免服务重启后数据丢失
+   */
+  private loadCommonTestData() {
+    const commonTestReviews: ReviewDTO[] = [
+      {
+        id: 'test_optimized_design_012',
+        appId: 'com.test.app',
+        appName: '潮汐 for iOS',
+        rating: 1,
+        title: '界面优化全面测试',
+        body: '测试emoji图标、专业提示文本、改进布局等各项优化效果',
+        author: '设计优化测试用户',
+        createdAt: '2024-01-01T00:00:00Z',
+        version: '2.3.4',
+        countryCode: 'CN',
+      },
+      {
+        id: 'test_form_working_008',
+        appId: 'com.test.app',
+        appName: '潮汐 for iOS',
+        rating: 2,
+        title: '表单修复验证',
+        body: '测试表单是否能正确显示输入框和按钮',
+        author: '测试用户',
+        createdAt: '2024-01-01T00:00:00Z',
+        version: '2.3.4',
+        countryCode: 'CN',
+      },
+    ];
+
+    commonTestReviews.forEach(review => {
+      this.reviews.set(review.id, review);
+    });
+
+    logger.info('MockDataManager: 常用测试数据预加载完成', { count: commonTestReviews.length });
   }
 }

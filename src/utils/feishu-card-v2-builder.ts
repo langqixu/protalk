@@ -69,7 +69,14 @@ function buildReviewInfo(review: ReviewDTO): any {
         is_short: false,
         text: {
           tag: 'lark_md',
-          content: `**${review.title}**\n${review.body}`,
+          content: `**${review.title}**\n\n${review.body}`,
+        },
+      },
+      {
+        is_short: false,
+        text: {
+          tag: 'lark_md',
+          content: `\n`,
         },
       },
       {
