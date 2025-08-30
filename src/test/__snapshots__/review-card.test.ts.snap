@@ -1,0 +1,510 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`buildReviewCardV2 should match snapshot for EDITING_REPLY state 1`] = `
+{
+  "config": {
+    "update_multi": true,
+    "wide_screen_mode": true,
+  },
+  "elements": [
+    {
+      "fields": [
+        {
+          "is_short": false,
+          "text": {
+            "content": "⭐⭐⭐⭐☆ (4/5)",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "**Great App!**
+
+This is a test review.",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "
+",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">👤 **用户:** Test User</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">🌍 **地区:** US</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📱 **版本:** 1.0.0</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📅 **时间:** 2023/10/27 18:00:00</font>",
+            "tag": "lark_md",
+          },
+        },
+      ],
+      "tag": "div",
+    },
+    {
+      "tag": "hr",
+    },
+    {
+      "elements": [
+        {
+          "default_value": "Thank you for your feedback!",
+          "input_type": "multiline_text",
+          "name": "reply_content",
+          "placeholder": {
+            "content": "修改您的回复内容...",
+            "tag": "plain_text",
+          },
+          "required": true,
+          "rows": 3,
+          "tag": "input",
+          "width": "fill",
+        },
+        {
+          "columns": [
+            {
+              "elements": [
+                {
+                  "action_type": "form_submit",
+                  "name": "update_button",
+                  "tag": "button",
+                  "text": {
+                    "content": "更新",
+                    "tag": "plain_text",
+                  },
+                  "type": "primary",
+                  "value": {
+                    "action": "replied",
+                    "review_id": "test_review_123",
+                  },
+                  "width": "default",
+                },
+              ],
+              "horizontal_align": "left",
+              "tag": "column",
+              "vertical_align": "top",
+              "vertical_spacing": "8px",
+              "width": "auto",
+            },
+            {
+              "elements": [
+                {
+                  "action_type": "request",
+                  "name": "cancel_edit_button",
+                  "tag": "button",
+                  "text": {
+                    "content": "取消",
+                    "tag": "plain_text",
+                  },
+                  "type": "default",
+                  "value": {
+                    "action": "replied",
+                    "review_id": "test_review_123",
+                  },
+                  "width": "default",
+                },
+              ],
+              "horizontal_align": "left",
+              "tag": "column",
+              "vertical_align": "top",
+              "vertical_spacing": "8px",
+              "width": "auto",
+            },
+          ],
+          "horizontal_align": "left",
+          "tag": "column_set",
+        },
+      ],
+      "name": "edit_reply_form",
+      "tag": "form",
+    },
+  ],
+  "header": {
+    "template": "green",
+    "title": {
+      "content": "✅ Test App - 新评论通知",
+      "tag": "plain_text",
+    },
+  },
+}
+`;
+
+exports[`buildReviewCardV2 should match snapshot for NO_REPLY state 1`] = `
+{
+  "config": {
+    "update_multi": true,
+    "wide_screen_mode": true,
+  },
+  "elements": [
+    {
+      "fields": [
+        {
+          "is_short": false,
+          "text": {
+            "content": "⭐⭐⭐⭐☆ (4/5)",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "**Great App!**
+
+This is a test review.",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "
+",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">👤 **用户:** Test User</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">🌍 **地区:** US</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📱 **版本:** 1.0.0</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📅 **时间:** 2023/10/27 18:00:00</font>",
+            "tag": "lark_md",
+          },
+        },
+      ],
+      "tag": "div",
+    },
+    {
+      "tag": "hr",
+    },
+    {
+      "actions": [
+        {
+          "behaviors": [
+            {
+              "type": "callback",
+              "value": {
+                "action": "replying",
+                "review_id": "test_review_123",
+              },
+            },
+          ],
+          "tag": "button",
+          "text": {
+            "content": "回复",
+            "tag": "plain_text",
+          },
+          "type": "primary",
+        },
+      ],
+      "tag": "action",
+    },
+  ],
+  "header": {
+    "template": "green",
+    "title": {
+      "content": "✅ Test App - 新评论通知",
+      "tag": "plain_text",
+    },
+  },
+}
+`;
+
+exports[`buildReviewCardV2 should match snapshot for REPLIED state 1`] = `
+{
+  "config": {
+    "update_multi": true,
+    "wide_screen_mode": true,
+  },
+  "elements": [
+    {
+      "fields": [
+        {
+          "is_short": false,
+          "text": {
+            "content": "⭐⭐⭐⭐☆ (4/5)",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "**Great App!**
+
+This is a test review.",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "
+",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">👤 **用户:** Test User</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">🌍 **地区:** US</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📱 **版本:** 1.0.0</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📅 **时间:** 2023/10/27 18:00:00</font>",
+            "tag": "lark_md",
+          },
+        },
+      ],
+      "tag": "div",
+    },
+    {
+      "tag": "hr",
+    },
+    {
+      "extra": {
+        "behaviors": [
+          {
+            "type": "callback",
+            "value": {
+              "action": "editing_reply",
+              "review_id": "test_review_123",
+            },
+          },
+        ],
+        "tag": "button",
+        "text": {
+          "content": "编辑回复",
+          "tag": "plain_text",
+        },
+        "type": "default",
+      },
+      "fields": [
+        {
+          "is_short": false,
+          "text": {
+            "content": "**开发者回复:**
+Thank you for your feedback!",
+            "tag": "lark_md",
+          },
+        },
+      ],
+      "tag": "div",
+    },
+  ],
+  "header": {
+    "template": "green",
+    "title": {
+      "content": "✅ Test App - 新评论通知",
+      "tag": "plain_text",
+    },
+  },
+}
+`;
+
+exports[`buildReviewCardV2 should match snapshot for REPLYING state 1`] = `
+{
+  "config": {
+    "update_multi": true,
+    "wide_screen_mode": true,
+  },
+  "elements": [
+    {
+      "fields": [
+        {
+          "is_short": false,
+          "text": {
+            "content": "⭐⭐⭐⭐☆ (4/5)",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "**Great App!**
+
+This is a test review.",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": false,
+          "text": {
+            "content": "
+",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">👤 **用户:** Test User</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">🌍 **地区:** US</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📱 **版本:** 1.0.0</font>",
+            "tag": "lark_md",
+          },
+        },
+        {
+          "is_short": true,
+          "text": {
+            "content": "<font color="grey">📅 **时间:** 2023/10/27 18:00:00</font>",
+            "tag": "lark_md",
+          },
+        },
+      ],
+      "tag": "div",
+    },
+    {
+      "tag": "hr",
+    },
+    {
+      "elements": [
+        {
+          "input_type": "multiline_text",
+          "name": "reply_content",
+          "placeholder": {
+            "content": "输入您对用户的回复内容...",
+            "tag": "plain_text",
+          },
+          "required": true,
+          "rows": 3,
+          "tag": "input",
+          "width": "fill",
+        },
+        {
+          "columns": [
+            {
+              "elements": [
+                {
+                  "action_type": "form_submit",
+                  "name": "submit_button",
+                  "tag": "button",
+                  "text": {
+                    "content": "提交",
+                    "tag": "plain_text",
+                  },
+                  "type": "primary",
+                  "value": {
+                    "action": "replied",
+                    "review_id": "test_review_123",
+                  },
+                  "width": "default",
+                },
+              ],
+              "horizontal_align": "left",
+              "tag": "column",
+              "vertical_align": "top",
+              "vertical_spacing": "8px",
+              "width": "auto",
+            },
+            {
+              "elements": [
+                {
+                  "action_type": "request",
+                  "name": "cancel_button",
+                  "tag": "button",
+                  "text": {
+                    "content": "取消",
+                    "tag": "plain_text",
+                  },
+                  "type": "default",
+                  "value": {
+                    "action": "no_reply",
+                    "review_id": "test_review_123",
+                  },
+                  "width": "default",
+                },
+              ],
+              "horizontal_align": "left",
+              "tag": "column",
+              "vertical_align": "top",
+              "vertical_spacing": "8px",
+              "width": "auto",
+            },
+          ],
+          "horizontal_align": "left",
+          "tag": "column_set",
+        },
+      ],
+      "name": "reply_form",
+      "tag": "form",
+    },
+  ],
+  "header": {
+    "template": "green",
+    "title": {
+      "content": "✅ Test App - 新评论通知",
+      "tag": "plain_text",
+    },
+  },
+}
+`;

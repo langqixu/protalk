@@ -1,5 +1,6 @@
 import { IReviewFetcher, IDatabaseManager, IPusher, AppReview } from '../types';
 import { DataProcessor } from '../modules/processor/DataProcessor';
+import { createOperationLogger } from '../utils/operation-logger';
 import logger from '../utils/logger';
 
 export class ReviewSyncService {
@@ -8,7 +9,8 @@ export class ReviewSyncService {
     private db: IDatabaseManager,
     private pusher: IPusher
   ) {
-    logger.info('评论同步服务初始化成功');
+    const opLogger = createOperationLogger('评论同步服务初始化');
+    opLogger.success();
   }
 
   /**
