@@ -879,6 +879,26 @@ export function buildReviewCardV2(reviewData: {
       direction: 'vertical'
     });
 
+  } else if (finalCardState === 'no_reply') {
+    // 无回复状态：显示"回复"按钮
+    card.elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '回复' },
+          type: 'primary',
+          size: 'medium',
+          action_type: 'request',
+          value: {
+            action: 'reply_review',
+            review_id: reviewData.id,
+            app_name: reviewData.app_name,
+            author: reviewData.author
+          }
+        }
+      ]
+    });
   } else {
     // 初始状态：显示输入框 + 提交按钮（使用飞书 2.0 格式）
     card.elements.push({

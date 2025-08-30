@@ -597,7 +597,7 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
         
         // 使用 buildReviewCardV2 创建带按钮的交互式卡片
         const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
-        cardContent = buildReviewCardV2(mockReview, 'initial');
+        cardContent = buildReviewCardV2(mockReview, 'no_reply');
         break;
       
       default:
