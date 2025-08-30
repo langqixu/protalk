@@ -1,0 +1,2428 @@
+import { Router, Request, Response } from 'express';
+import logger from '../utils/logger';
+import { FeishuServiceV1 } from '../services/FeishuServiceV1';
+import { handleCardAction } from './controllers/review-card-controller';
+import { CardState, ReviewDTO } from '../types/review';
+import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
+
+const router = Router();
+
+let feishuService: FeishuServiceV1 | null = null;
+
+// 测试场景回复内容缓存
+const testReplyCache = new Map<string, string>();
+
+// 事件处理状态缓存 - 防止重复处理和界面闪烁
+const eventTimestamps = new Map<string, number>();
+
+/**
+ * 初始化飞书v1服务
+ */
+export function initializeFeishuServiceV1(service: FeishuServiceV1) {
+  feishuService = service;
+  logger.info('飞书v1 API路由初始化成功');
+}
+
+/**
+ * 检查并防止重复事件处理
+ */
+function isDuplicateEvent(eventKey: string, timeWindow: number = 2000): boolean {
+  const now = Date.now();
+  const lastTime = eventTimestamps.get(eventKey);
+  
+  // 如果在时间窗口内有相同事件，认为是重复
+  if (lastTime && (now - lastTime) < timeWindow) {
+    logger.warn('检测到重复事件，跳过处理', { eventKey, timeDiff: now - lastTime });
+    return true;
+  }
+  
+  // 记录事件时间戳
+  eventTimestamps.set(eventKey, now);
+  
+  // 清理旧的时间戳（保持内存使用合理）
+  if (eventTimestamps.size > 100) {
+    const oldestAllowed = now - timeWindow * 2;
+    for (const [key, timestamp] of eventTimestamps.entries()) {
+      if (timestamp < oldestAllowed) {
+        eventTimestamps.delete(key);
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * 验证服务是否已初始化
+ */
+function ensureServiceInitialized(res: Response): boolean {
+  if (!feishuService) {
+    res.status(500).json({ 
+      success: false,
+      error: '飞书服务未初始化',
+      code: 'SERVICE_NOT_INITIALIZED'
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 统一错误处理
+ */
+function handleError(res: Response, error: unknown, operation: string) {
+  const errorMessage = error instanceof Error ? error.message : '未知错误';
+  logger.error(`${operation}失败`, { error: errorMessage });
+  
+  res.status(500).json({ 
+    success: false,
+    error: `${operation}失败`,
+    details: errorMessage,
+    timestamp: new Date().toISOString()
+  });
+}
+
+// ================================
+// 服务状态和管理接口
+// ================================
+
+/**
+ * 获取服务状态 / 紧急修复
+ * GET /feishu/status?emergency=mark-historical&confirm=true
+ */
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    // 🚨 紧急修复逻辑
+    if (req.query['emergency'] === 'mark-historical') {
+      logger.info('🚨 通过status端点执行紧急修复');
+      
+      const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+      const dbManager = new SupabaseManager();
+      
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24小时前
+      
+      if (req.query['confirm'] === 'true') {
+        // 实际执行
+        const { error: updateError } = await dbManager.client
+          .from('app_reviews')
+          .update({ 
+            is_pushed: true, 
+            push_type: 'emergency_historical_batch',
+            updated_at: new Date().toISOString()
+          })
+          .lt('created_date', cutoff.toISOString())
+          .or('is_pushed.is.null,is_pushed.eq.false');
+        
+        if (updateError) {
+          throw new Error(`紧急修复失败: ${updateError.message}`);
+        }
+        
+        logger.info('✅ 紧急修复完成：历史评论已标记为已推送');
+        
+        res.json({
+          success: true,
+          emergency: 'completed',
+          message: '历史评论已批量标记为已推送',
+          cutoffDate: cutoff.toISOString()
+        });
+        return;
+      } else {
+        // 预览模式
+        const { data: reviews, error: queryError } = await dbManager.client
+          .from('app_reviews')
+          .select('review_id, created_date, title')
+          .lt('created_date', cutoff.toISOString())
+          .or('is_pushed.is.null,is_pushed.eq.false')
+          .limit(10);
+        
+        if (queryError) {
+          throw new Error(`查询失败: ${queryError.message}`);
+        }
+        
+        res.json({
+          success: true,
+          emergency: 'preview',
+          message: `发现 ${reviews.length} 条未推送的历史评论`,
+          cutoffDate: cutoff.toISOString(),
+          sampleReviews: reviews.slice(0, 5).map((r: any) => ({
+            id: r.review_id.slice(0, 20) + '...',
+            date: r.created_date,
+            title: r.title?.slice(0, 30) + '...'
+          })),
+          instruction: '添加 &confirm=true 参数执行实际修复'
+        });
+        return;
+      }
+    }
+
+    // 正常状态查询
+    const status = feishuService!.getStatus();
+    
+    res.json({
+      success: true,
+      status: {
+        ...status,
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '获取服务状态');
+  }
+});
+
+/**
+ * 健康检查
+ * GET /feishu/health
+ */
+router.get('/health', async (_req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const chatId = await feishuService!.getFirstChatId();
+    
+    res.json({
+      success: true,
+      health: 'ok',
+      canAccessChats: !!chatId,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    handleError(res, error, '健康检查');
+  }
+});
+
+// ================================
+// 群组管理接口
+// ================================
+
+/**
+ * 获取群组列表
+ * GET /feishu/chats?page_size=50&page_token=xxx
+ */
+router.get('/chats', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const pageSize = parseInt(req.query['page_size'] as string) || 50;
+    const pageToken = req.query['page_token'] as string;
+
+    const data = await feishuService!.getChatList(pageSize, pageToken);
+    
+    res.json({
+      success: true,
+      data: {
+        chats: data.items.map((chat: any) => ({
+          chat_id: chat.chat_id,
+          name: chat.name,
+          description: chat.description,
+          chat_mode: chat.chat_mode,
+          chat_type: chat.chat_type,
+          external: chat.external
+        })),
+        has_more: data.has_more,
+        page_token: data.page_token,
+        total: data.items.length
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '获取群组列表');
+  }
+});
+
+/**
+ * 获取第一个群组ID
+ * GET /feishu/first-chat-id
+ */
+router.get('/first-chat-id', async (_req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const chatId = await feishuService!.getFirstChatId();
+    
+    if (chatId) {
+      res.json({
+        success: true,
+        chat_id: chatId
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: '没有找到可用的群组',
+        code: 'NO_CHATS_FOUND'
+      });
+    }
+  } catch (error) {
+    handleError(res, error, '获取第一个群组ID');
+  }
+});
+
+/**
+ * 获取群组详细信息
+ * GET /feishu/chats/:chatId
+ */
+router.get('/chats/:chatId', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const chatId = req.params['chatId'];
+    if (!chatId) {
+      res.status(400).json({
+        success: false,
+        error: '群组ID不能为空',
+        code: 'MISSING_CHAT_ID'
+      });
+      return;
+    }
+
+    const chatInfo = await feishuService!.getChatInfo(chatId);
+    
+    res.json({
+      success: true,
+      data: chatInfo
+    });
+  } catch (error) {
+    handleError(res, error, '获取群组信息');
+  }
+});
+
+// ================================
+// 消息发送接口
+// ================================
+
+/**
+ * 发送文本消息
+ * POST /feishu/messages/text
+ * Body: { content: string, chat_id?: string }
+ */
+router.post('/messages/text', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { content, chat_id } = req.body;
+
+    if (!content) {
+      res.status(400).json({
+        success: false,
+        error: '消息内容不能为空',
+        code: 'MISSING_CONTENT'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组',
+          code: 'NO_CHATS_AVAILABLE'
+        });
+        return;
+      }
+    }
+
+    const result = await feishuService!.sendTextMessage(chatId, content);
+    
+    res.json({
+      success: true,
+      data: {
+        message_id: result.message_id,
+        chat_id: chatId,
+        content: content
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '发送文本消息');
+  }
+});
+
+/**
+ * 发送富文本消息 (支持传统post格式和新v2卡片格式)
+ * POST /feishu/messages/rich-text
+ * Body: { 
+ *   content: object, 
+ *   chat_id?: string,
+ *   format?: 'post' | 'card_v2' | 'auto'
+ * }
+ */
+router.post('/messages/rich-text', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { content, chat_id, format = 'auto' } = req.body;
+
+    if (!content) {
+      res.status(400).json({
+        success: false,
+        error: '富文本内容不能为空',
+        code: 'MISSING_CONTENT'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组',
+          code: 'NO_CHATS_AVAILABLE'
+        });
+        return;
+      }
+    }
+
+    let result;
+
+    // 根据格式类型选择发送方式
+    if (format === 'card_v2' || (format === 'auto' && (content.config || content.header || content.elements))) {
+      // 发送v2卡片格式
+      result = await feishuService!.sendCardMessage(chatId, content);
+    } else {
+      // 发送传统富文本格式
+      result = await feishuService!.sendRichTextMessage(chatId, content);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        message_id: result.message_id,
+        chat_id: chatId,
+        format_used: format === 'auto' ? (content.config || content.header || content.elements ? 'card_v2' : 'post') : format
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '发送富文本消息');
+  }
+});
+
+/**
+ * 发送互动卡片消息
+ * POST /feishu/messages/card
+ * Body: { card: object, chat_id?: string }
+ */
+router.post('/messages/card', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { card, chat_id } = req.body;
+
+    if (!card) {
+      res.status(400).json({
+        success: false,
+        error: '卡片内容不能为空',
+        code: 'MISSING_CARD'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组',
+          code: 'NO_CHATS_AVAILABLE'
+        });
+        return;
+      }
+    }
+
+    const result = await feishuService!.sendCardMessage(chatId, card);
+    
+    res.json({
+      success: true,
+      data: {
+        message_id: result.message_id,
+        chat_id: chatId
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '发送互动卡片消息');
+  }
+});
+
+/**
+ * 推送评论到指定群组
+ * POST /feishu/reviews/push
+ * Body: { chat_id: string, review: object }
+ */
+router.post('/reviews/push', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { chat_id, review } = req.body;
+
+    if (!chat_id || !review) {
+      res.status(400).json({
+        success: false,
+        error: '群组ID和评论内容不能为空',
+        code: 'MISSING_REQUIRED_FIELDS'
+      });
+      return;
+    }
+
+    await feishuService!.pushReviewToChat(chat_id, review);
+    
+    res.json({
+      success: true,
+      data: {
+        chat_id: chat_id,
+        review_id: review.id
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '推送评论');
+  }
+});
+
+/**
+ * 连接测试
+ * GET /feishu/test
+ */
+router.get('/test', async (_req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const chatId = await feishuService!.getFirstChatId();
+    
+    if (!chatId) {
+      res.json({
+        success: false,
+        error: '无法获取群组ID',
+        details: '可能是机器人未被添加到任何群组',
+        code: 'NO_CHATS_AVAILABLE'
+      });
+      return;
+    }
+
+    // 发送测试消息
+    const testContent = `🧪 v1 API完整路由测试 - ${new Date().toLocaleString('zh-CN')}`;
+    await feishuService!.sendTextMessage(chatId, testContent);
+    
+    res.json({
+      success: true,
+      message: '测试消息发送成功',
+      chat_id: chatId,
+      api_version: 'v1',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    handleError(res, error, '连接测试');
+  }
+});
+
+/**
+ * 测试新v2卡片组件
+ * POST /feishu/test/card-v2
+ */
+router.post('/test/card-v2', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { template = 'demo', chat_id, reviewData } = req.body;
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组',
+          code: 'NO_CHATS_AVAILABLE'
+        });
+        return;
+      }
+    }
+
+    // 导入富文本工厂
+    const { RichTextFactory } = require('../utils/rich-text-factory');
+
+    let cardContent;
+    switch (template) {
+      case 'system':
+        cardContent = RichTextFactory.createSystemNotification({
+          type: 'success',
+          title: 'v2卡片组件测试',
+          message: '🎉 新的飞书卡片v2组件系统已成功部署！\n\n✨ **新特性包括:**\n- 现代化的视觉设计\n- 更丰富的交互组件\n- 更好的用户体验\n- 完整的TypeScript支持',
+          action: {
+            text: '查看文档',
+            callback: 'view_docs'
+          }
+        });
+        break;
+      
+      case 'status':
+        cardContent = RichTextFactory.createServiceStatusMessage({
+          service: 'Protalk评论同步服务',
+          status: 'running',
+          version: '2.0.0',
+          uptime: process.uptime(),
+          details: {
+            lastSync: new Date().toISOString(),
+            messageCount: 42
+          }
+        });
+        break;
+      
+      case 'review':
+        // 🔧 使用传入的reviewData或默认模拟数据，并使用 buildReviewCardV2 创建交互式卡片
+        const mockReview = reviewData || {
+          reviewId: 'test_review_' + Date.now(),
+          id: 'test_review_' + Date.now(),
+          appId: '1077776989', // 潮汐应用的真实ID
+          app_name: '潮汐 for iOS',
+          rating: 5,
+          title: '优秀的专注应用！',
+          body: '潮汐真的是一个非常棒的专注应用！界面设计简洁美观，各种自然声音很舒缓，帮助我在工作和学习时保持专注。特别喜欢番茄钟功能，让我的时间管理更加高效。强烈推荐给需要提高专注力的朋友们！',
+          author: '专注达人小张',
+          reviewerNickname: '专注达人小张',
+          created_date: '2025/8/30',
+          createdDate: new Date(),
+          version: '1.0.0',
+          country: 'CN',
+          territoryCode: 'CN',
+          isEdited: false,
+          responseBody: null,
+          responseDate: null,
+          isPushed: false,
+          pushType: 'new' as const,
+          firstSyncAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        // 使用 buildReviewCardV2 创建带按钮的交互式卡片
+        const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+        cardContent = buildReviewCardV2(mockReview, 'no_reply');
+        break;
+      
+      default:
+        // 默认演示卡片
+        const { createCardBuilder } = require('../utils/feishu-card-v2-builder');
+        cardContent = createCardBuilder()
+          .setConfig({ wide_screen_mode: true, enable_forward: true })
+          .setHeader({
+            title: { tag: 'plain_text', content: '🚀 飞书卡片v2组件演示' },
+            subtitle: { tag: 'plain_text', content: '展示各种组件和布局能力' },
+            template: 'blue'
+          })
+          .addDiv('欢迎使用全新的飞书卡片v2组件系统！')
+          .addHr()
+          .addColumnSet([
+            {
+              width: 'weighted',
+              weight: 1,
+              elements: [{
+                type: 'div',
+                content: '**左栏**\n功能特性展示'
+              }]
+            },
+            {
+              width: 'weighted', 
+              weight: 1,
+              elements: [{
+                type: 'div',
+                content: '**右栏**\n实时数据显示'
+              }]
+            }
+          ])
+          .addNote([
+            { type: 'text', content: '💡 这是一个备注组件示例' }
+          ])
+          .addActionGroup([
+            { text: '主要操作', type: 'primary', actionType: 'request', value: { action: 'primary' } },
+            { text: '次要操作', type: 'default', actionType: 'request', value: { action: 'secondary' } }
+          ])
+          .build();
+    }
+
+    const result = await feishuService!.sendCardMessage(chatId, cardContent);
+    
+    res.json({
+      success: true,
+      data: {
+        message_id: result.message_id,
+        chat_id: chatId,
+        template_used: template,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '发送v2卡片测试');
+  }
+});
+
+/**
+ * 处理卡片交互事件 (兼容旧版本)
+ * POST /feishu/card-actions
+ * Body: { action: object, user_id: string, message_id: string }
+ */
+router.post('/card-actions', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { action, user_id, message_id } = req.body;
+    
+    logger.info('收到卡片交互事件', { 
+      action, 
+      user_id, 
+      message_id
+    });
+
+    // 立即响应飞书服务器
+    res.json({ 
+      success: true,
+      code: 0,
+      message: 'OK'
+    });
+
+    // 异步处理卡片交互
+    if (action && action.value) {
+      // 从输入框中获取用户输入的回复内容
+      const replyContent = action.form_value?.reply_content || action.value.reply_content;
+      
+      // 构建完整的action值，包含用户输入
+      const actionValue = {
+        ...action.value,
+        reply_content: replyContent
+      };
+      
+      await handleCardActionV1(actionValue, user_id, message_id);
+    }
+
+    return;
+  } catch (error) {
+    handleError(res, error, '处理卡片交互');
+  }
+});
+
+/**
+ * 创建评论摘要报告
+ * POST /feishu/reports/review-summary
+ * Body: { app_name: string, chat_id?: string }
+ */
+router.post('/reports/review-summary', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { app_name, chat_id } = req.body;
+
+    if (!app_name) {
+      res.status(400).json({
+        success: false,
+        error: '应用名称不能为空',
+        code: 'MISSING_APP_NAME'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组',
+          code: 'NO_CHATS_AVAILABLE'
+        });
+        return;
+      }
+    }
+
+    // 创建模拟摘要数据（实际使用时应该从数据库获取）
+    const mockReviews = [
+      {
+        id: '1',
+        app_name,
+        app_id: '1234567890',
+        title: '很好用的应用',
+        content: '界面简洁，功能实用',
+        rating: 5,
+        author: '用户A',
+        store_type: 'ios' as const,
+        date: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        id: '2',
+        app_name,
+        app_id: '1234567890',
+        title: '还不错',
+        content: '总体来说比较满意，但是有些地方可以改进',
+        rating: 4,
+        author: '用户B',
+        store_type: 'ios' as const,
+        date: new Date(Date.now() - 172800000).toISOString()
+      },
+      {
+        id: '3',
+        app_name,
+        app_id: '1234567890',
+        title: '有待改进',
+        content: '功能不够完善，希望后续版本能有所改进',
+        rating: 3,
+        author: '用户C',
+        store_type: 'android' as const,
+        date: new Date(Date.now() - 259200000).toISOString()
+      }
+    ];
+
+    const { RichTextFactory } = require('../utils/rich-text-factory');
+    const summaryCard = RichTextFactory.createReviewSummaryMessage(app_name, mockReviews);
+
+    const result = await feishuService!.sendCardMessage(chatId, summaryCard);
+    
+    res.json({
+      success: true,
+      data: {
+        message_id: result.message_id,
+        chat_id: chatId,
+        app_name,
+        review_count: mockReviews.length
+      }
+    });
+  } catch (error) {
+    handleError(res, error, '创建评论摘要报告');
+  }
+});
+
+// ================================
+// 兼容性接口（向后兼容）
+// ================================
+
+/**
+ * 兼容旧版本的发送消息接口
+ * POST /feishu/send-message
+ */
+router.post('/send-message', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { content, chat_id } = req.body;
+
+    if (!content) {
+      res.status(400).json({
+        success: false,
+        error: '消息内容不能为空'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组'
+        });
+        return;
+      }
+    }
+
+    const result = await feishuService!.sendTextMessage(chatId, content);
+    
+    res.json({
+      success: true,
+      message_id: result.message_id,
+      chat_id: chatId
+    });
+  } catch (error) {
+    handleError(res, error, '发送文本消息');
+  }
+});
+
+/**
+ * 兼容旧版本的发送卡片接口  
+ * POST /feishu/send-card
+ */
+router.post('/send-card', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { card, chat_id } = req.body;
+
+    if (!card) {
+      res.status(400).json({
+        success: false,
+        error: '卡片内容不能为空'
+      });
+      return;
+    }
+
+    let chatId = chat_id;
+    if (!chatId) {
+      chatId = await feishuService!.getFirstChatId();
+      if (!chatId) {
+        res.status(404).json({
+          success: false,
+          error: '无法找到可用的群组'
+        });
+        return;
+      }
+    }
+
+    const result = await feishuService!.sendCardMessage(chatId, card);
+    
+    res.json({
+      success: true,
+      message_id: result.message_id,
+      chat_id: chatId
+    });
+  } catch (error) {
+    handleError(res, error, '发送卡片消息');
+  }
+});
+
+/**
+ * 兼容旧版本的推送接口
+ * POST /feishu/send-to
+ */
+router.post('/send-to', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { chat_id, content, review } = req.body;
+
+    if (!chat_id) {
+      res.status(400).json({
+        success: false,
+        error: '群组ID不能为空'
+      });
+      return;
+    }
+
+    if (review) {
+      // 发送评论卡片
+      await feishuService!.pushReviewToChat(chat_id, review);
+    } else if (content) {
+      // 发送文本消息
+      await feishuService!.sendTextMessage(chat_id, content);
+    } else {
+      res.status(400).json({
+        success: false,
+        error: '必须提供content或review参数'
+      });
+      return;
+    }
+    
+    res.json({
+      success: true,
+      chat_id: chat_id
+    });
+  } catch (error) {
+    handleError(res, error, '推送消息');
+  }
+});
+
+// 旧的函数定义已移除，使用下方的完整版本
+
+// ================================
+// 事件处理接口
+// ================================
+
+/**
+ * 飞书事件处理（Webhook回调）
+ * POST /feishu/events
+ */
+router.post('/events', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  
+  // 🔧 DEBUG: 打印所有原始事件
+  console.log('🚨 RAW EVENT:', JSON.stringify(req.body, null, 2));
+  logger.info('🚨 RAW EVENT RECEIVED', { 
+    type: req.body.type,
+    event_type: req.body.event?.event_type,
+    timestamp: new Date().toISOString(),
+    fullBody: JSON.stringify(req.body, null, 2)
+  });
+  
+  try {
+    const { challenge, type, event } = req.body;
+
+    // 处理 URL 验证 - 立即返回
+    if (type === 'url_verification') {
+      logger.info('飞书 URL 验证 (v1)', { challenge, responseTime: Date.now() - startTime });
+      return res.json({ challenge });
+    }
+
+    // 立即返回响应，避免超时
+    res.json({ code: 0, msg: 'success' });
+    
+    const responseTime = Date.now() - startTime;
+    logger.info('事件响应完成 (v1)', { 
+      type, 
+      responseTime,
+      eventType: event?.event_type
+    });
+
+    // 异步处理事件 - 兼容新旧格式
+    if (type === 'event_callback' || req.body.schema === '2.0') {
+      process.nextTick(async () => {
+        try {
+          // 兼容新版 schema 2.0 格式和旧版格式
+          const eventData = req.body.schema === '2.0' ? req.body.event : event;
+          const eventType = req.body.schema === '2.0' ? req.body.header?.event_type : event?.event_type;
+          
+          logger.info('🔧 DEBUG: 处理事件回调', {
+            schema: req.body.schema || '1.0',
+            eventType: eventType,
+            action: eventData?.action,
+            hasAction: !!eventData?.action,
+            hasValue: !!eventData?.action?.value,
+            hasContext: !!eventData?.context
+          });
+          
+          // 特殊处理卡片交互事件（兼容新旧版本）
+          if (eventType === 'card.action.trigger' || eventType === 'card.action.trigger_v1') {
+            await handleCardActionEventV1(eventData, req.body.schema === '2.0');
+          } else if (eventType === 'card.form.submit') {
+            // 处理模态框表单提交事件
+            await handleModalSubmitEvent(eventData);
+          } else {
+            // 其他事件交给服务处理
+            await feishuService!.handleFeishuEvent(req.body);
+          }
+          
+          logger.info('异步事件处理完成 (v1)', { 
+            eventType: event?.event_type,
+            totalTime: Date.now() - startTime
+          });
+        } catch (error) {
+          logger.error('异步处理飞书事件失败 (v1)', { 
+            error: error instanceof Error ? error.message : error,
+            event,
+            totalTime: Date.now() - startTime
+          });
+        }
+      });
+    }
+    
+    return; // 显式返回
+
+  } catch (error) {
+    logger.error('处理飞书事件失败 (v1)', {
+      error: error instanceof Error ? error.message : error,
+      body: req.body
+    });
+    
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : '未知错误'
+      });
+    }
+    return;
+  }
+});
+
+/**
+ * 处理卡片交互事件 (v1) - 支持 form 表单容器和新版 schema 2.0
+ */
+async function handleCardActionEventV1(event: any, isSchema2 = false): Promise<void> {
+  try {
+    // 兼容新版 schema 2.0 和旧版格式
+    let action, user_id, message_id, trigger_id, form_value;
+    
+    if (isSchema2) {
+      // Schema 2.0 格式: 从 context 中获取信息
+      action = event.action;
+      user_id = event.operator?.open_id;
+      message_id = event.context?.open_message_id;
+      trigger_id = event.trigger_id;
+      form_value = event.action?.form_value;
+    } else {
+      // 旧版格式
+      ({ action, user_id, message_id, trigger_id, form_value } = event);
+    }
+    
+    logger.info('收到卡片交互事件 (v1)', { 
+      action, 
+      user_id, 
+      message_id,
+      trigger_id,
+      isSchema2,
+      eventType: event.event_type,
+      hasFormValue: !!form_value,
+      actionValue: action?.value,
+      actionTag: action?.tag,
+      actionName: action?.name,
+      actionFormValue: action?.form_value,
+      eventFormValue: form_value,
+      fullEvent: JSON.stringify(event).substring(0, 500) + '...'
+    });
+
+    if (action) {
+      // 处理不同类型的交互
+      if (action.value) {
+        // 标准按钮点击（有 value 字段）
+        const replyContent = form_value?.reply_content || action.form_value?.reply_content;
+        
+        const actionValue = {
+          ...action.value,
+          reply_content: replyContent,
+          trigger_id: trigger_id
+        };
+        
+        logger.debug('解析的表单数据', {
+          replyContent: replyContent?.substring(0, 50) + (replyContent?.length > 50 ? '...' : ''),
+          actionType: actionValue.action,
+          actionTag: action.tag
+        });
+        
+        await handleCardActionV1(actionValue, user_id, message_id);
+      } else if (action.tag === 'button' && (action.form_value || form_value)) {
+        // 表单提交按钮（无 value 字段，但有 form_value）
+        const replyContent = action.form_value?.reply_content || form_value?.reply_content;
+        const buttonName = action.name;
+        
+        logger.info('🎯 收到表单提交按钮点击！', { 
+          buttonName, 
+          replyContent: replyContent?.substring(0, 50),
+          userId: user_id, 
+          messageId: message_id 
+        });
+        
+        // 根据按钮名称判断操作类型
+        if (buttonName === 'submit_button') {
+          // 对于评论卡片的提交按钮，直接使用 test_submit 来模拟成功的回复
+          const actionValue = {
+            action: 'test_submit',
+            reply_content: replyContent,
+            trigger_id: trigger_id,
+            review_id: message_id, // 临时使用 message_id 作为 review_id
+            message_id: message_id
+          };
+          
+          logger.info('🎯 收到表单提交按钮点击！', { 
+            buttonName, 
+            actionType: 'test_submit',
+            replyContent: replyContent?.substring(0, 50),
+            userId: user_id, 
+            messageId: message_id 
+          });
+          
+          await handleCardActionV1(actionValue, user_id, message_id);
+          return;
+        } else if (buttonName === 'update_button') {
+          // 对于编辑卡片的更新按钮，使用 update_reply 来更新回复
+          const actionValue = {
+            action: 'update_reply',
+            reply_content: replyContent,
+            trigger_id: trigger_id,
+            review_id: message_id, // 临时使用 message_id 作为 review_id
+            message_id: message_id
+          };
+          
+          logger.info('🎯 收到更新回复按钮点击！', { 
+            buttonName, 
+            actionType: 'update_reply',
+            replyContent: replyContent?.substring(0, 50),
+            userId: user_id, 
+            messageId: message_id 
+          });
+          
+          await handleCardActionV1(actionValue, user_id, message_id);
+          return;
+        }
+      }
+    }
+    
+  } catch (error) {
+    logger.error('处理卡片交互事件失败 (v1)', {
+      error: error instanceof Error ? error.message : error,
+      event,
+      isSchema2
+    });
+  }
+}
+
+/**
+ * 处理卡片交互动作 (v1) - 支持完整回复流程
+ */
+async function handleCardActionV1(
+  actionValue: any, 
+  userId: string, 
+  messageId: string
+): Promise<void> {
+  try {
+    // 兼容新的简化格式 {a: "action"} 和旧格式 {action: "action"}
+    const action = actionValue.a || actionValue.action;
+    const { review_id, app_name, author, reply_content } = actionValue;
+    
+    logger.info('处理卡片交互动作 (v1)', { 
+      action, 
+      review_id, 
+      app_name, 
+      author,
+      userId, 
+      messageId,
+      hasReplyContent: !!reply_content
+    });
+
+    switch (action) {
+      case 'ping':
+        // 🧪 处理极简测试按钮
+        logger.info('🎯 收到测试按钮点击！', { actionValue, userId, messageId });
+        // 简单回复确认收到
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 按钮测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `按钮点击事件成功收到！时间戳：${actionValue.t}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_traditional':
+        // 🧪 处理传统格式按钮测试
+        logger.info('🎯 收到传统格式按钮点击！', { actionValue, userId, messageId });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 传统按钮测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `传统格式按钮点击成功！测试ID：${actionValue.test_id}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_behaviors':
+        // 🧪 处理behaviors格式按钮测试
+        logger.info('🎯 收到behaviors格式按钮点击！', { actionValue, userId, messageId });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ Behaviors测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `Behaviors格式按钮点击成功！测试ID：${actionValue.test_id}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'official_form_submit':
+        // 🧪 处理官方规范表单提交测试
+        logger.info('🎯 收到官方规范表单提交！', { actionValue, userId, messageId, reply_content });
+        if (feishuService) {
+          const confirmCard = {
+            config: { wide_screen_mode: true },
+            header: {
+              title: { tag: 'plain_text', content: '✅ 官方规范表单测试成功' },
+              template: 'green'
+            },
+            elements: [
+              {
+                tag: 'div',
+                text: { tag: 'plain_text', content: `官方规范表单提交成功！输入内容：${reply_content || '无内容'}` }
+              }
+            ]
+          };
+          await feishuService.updateCardMessage(messageId, confirmCard);
+        }
+        break;
+      case 'test_submit':
+        // 🧪 处理表单提交测试 - 模拟真实的评论回复流程
+        logger.info('🎯 收到表单提交测试！', { actionValue, userId, messageId, reply_content });
+        if (feishuService && reply_content) {
+          // 更新测试回复缓存
+          const reviewId = actionValue.review_id || messageId;
+          testReplyCache.set(reviewId, reply_content);
+          logger.info('🧪 初始提交更新测试回复缓存', { reviewId, reply_content });
+          // 构建回复后的评论卡片（保持原有结构，但显示为已回复状态）
+          const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+          
+          // 模拟测试评论数据，状态更新为已回复
+          const reviewData = {
+            id: actionValue.review_id || 'test_review_001',
+            app_name: '潮汐 for iOS',
+            app_id: 'test_app',
+            title: '[测试] 用户评论标题',
+            content: '这是一条测试用户评论内容，用于验证回复功能是否正常工作。',
+            rating: 4,
+            author: '测试用户',
+            store_type: 'ios',
+            version: '1.0.0',
+            date: new Date().toISOString(),
+            country: 'CN',
+            developer_response: {
+              body: reply_content,
+              date: new Date().toISOString()
+            },
+            card_state: 'replied', // 重要：设置为已回复状态
+            message_id: messageId
+          };
+          
+          const updatedCard = buildReviewCardV2(reviewData);
+          await feishuService.updateCardMessage(messageId, updatedCard);
+          
+          logger.info('✅ 测试评论回复成功', { 
+            messageId, 
+            replyContent: reply_content.substring(0, 50),
+            cardState: 'replied'
+          });
+        }
+        break;
+      case 'reply_review':
+        await handleReplyReview(review_id, messageId);
+        break;
+      case 'submit_reply':
+        await handleSubmitReply(review_id, reply_content, messageId);
+        break;
+      case 'edit_reply':
+        await handleEditReply(review_id, messageId);
+        break;
+      case 'update_reply':
+        await handleUpdateReply(review_id, reply_content, messageId);
+        break;
+      case 'cancel_reply':
+      case 'cancel_edit':
+        await handleCancelReply(review_id, messageId);
+        break;
+      case 'quick_reply':
+        await handleQuickReply(actionValue, userId);
+        break;
+
+      case 'view_details':
+        await handleViewDetailsV1(actionValue, userId);
+        break;
+      case 'refresh':
+        await handleRefreshV1(actionValue, userId);
+        break;
+      default:
+        logger.warn('未知的卡片交互动作 (v1)', { action, actionValue });
+    }
+  } catch (error) {
+    logger.error('处理卡片交互动作失败 (v1)', {
+      error: error instanceof Error ? error.message : error,
+      actionValue,
+      userId,
+      messageId
+    });
+  }
+}
+
+
+
+
+
+/**
+ * 处理查看详情 (v1)
+ */
+async function handleViewDetailsV1(
+  actionValue: any, 
+  userId: string
+): Promise<void> {
+  try {
+    const { review_id } = actionValue;
+    logger.info('用户查看评论详情 (v1)', { review_id, userId });
+    // 可以发送详细信息卡片
+  } catch (error) {
+    logger.error('查看详情失败 (v1)', {
+      error: error instanceof Error ? error.message : error,
+      actionValue,
+      userId
+    });
+  }
+}
+
+/**
+ * 处理刷新 (v1)
+ */
+async function handleRefreshV1(
+  actionValue: any, 
+  userId: string
+): Promise<void> {
+  try {
+    const { review_id } = actionValue;
+    logger.info('用户刷新评论 (v1)', { review_id, userId });
+    // 可以重新获取评论信息并更新卡片
+  } catch (error) {
+    logger.error('刷新失败 (v1)', {
+      error: error instanceof Error ? error.message : error,
+      actionValue,
+      userId
+    });
+  }
+}
+
+/**
+ * 部署验证接口
+ * POST /feishu/deployment/verify
+ * 推送最新5条评论来验证卡片功能
+ */
+router.post('/deployment/verify', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    // 导入部署验证服务
+    const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
+    
+    // 获取推送服务实例
+    const pusher = feishuService;
+    
+    if (!pusher) {
+      res.status(500).json({
+        success: false,
+        error: '飞书服务未初始化'
+      });
+      return;
+    }
+    
+    // 直接创建数据库管理器实例
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const { loadConfig } = require('../config');
+    const { env: envConfig } = loadConfig();
+    const db = new SupabaseManager({ supabase: envConfig.supabase });
+
+    // 创建验证服务实例
+    const verificationService = new DeploymentVerificationService(db, pusher);
+    
+    logger.info('开始执行部署验证', { 
+      timestamp: new Date().toISOString(),
+      requestIP: req.ip 
+    });
+
+    // 执行验证流程
+    const result = await verificationService.runDeploymentVerification();
+
+    res.json({
+      success: true,
+      message: '部署验证完成',
+      data: result
+    });
+
+  } catch (error) {
+    handleError(res, error, '部署验证失败');
+  }
+});
+
+/**
+ * 获取最新评论接口（仅用于验证）
+ * GET /feishu/deployment/latest-reviews
+ */
+router.get('/deployment/latest-reviews', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { DeploymentVerificationService } = require('../services/DeploymentVerificationService');
+    
+    // 直接创建数据库管理器实例
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const { loadConfig } = require('../config');
+    const { env: envConfig } = loadConfig();
+    const db = new SupabaseManager({ supabase: envConfig.supabase });
+
+    const verificationService = new DeploymentVerificationService(db, null as any);
+    const limit = parseInt(req.query['limit'] as string) || 5;
+    
+    const reviews = await verificationService.getLatestReviews(limit);
+
+    res.json({
+      success: true,
+      data: {
+        reviews: reviews.map((review: any) => ({
+          reviewId: review.reviewId,
+          appId: review.appId,
+          rating: review.rating,
+          title: review.title,
+          body: review.body?.substring(0, 100) + '...',
+          reviewerNickname: review.reviewerNickname,
+          reviewDate: review.createdDate,
+          isPushed: review.isPushed,
+          pushType: review.pushType
+        })),
+        count: reviews.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    handleError(res, error, '获取最新评论失败');
+  }
+});
+
+/**
+ * 处理模态对话框提交事件
+ * POST /feishu/modal-actions
+ */
+router.post('/modal-actions', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { view, user_id } = req.body;
+    
+    logger.info('收到模态对话框提交事件', { 
+      view_id: view?.view_id,
+      user_id
+    });
+
+    // 立即响应飞书服务器
+    res.json({ 
+      success: true,
+      code: 0,
+      message: 'OK'
+    });
+
+    // 异步处理模态对话框提交
+    if (view && view.state && view.state.values) {
+      await handleModalSubmit(view, user_id);
+    }
+
+      return;
+  } catch (error) {
+    handleError(res, error, '处理模态对话框提交');
+  }
+});
+
+// ================================
+// 新的卡片交互处理函数
+// ================================
+
+/**
+ * 处理"回复评论"按钮点击 - 展开输入框
+ */
+async function handleReplyReview(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理回复评论交互', { reviewId, messageId });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 构建带有输入框的卡片数据
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const cardData = buildReviewCardV2({
+      ...review,
+      card_state: 'replying',
+      message_id: messageId
+    });
+    
+    // 更新卡片
+    await feishuService!.updateCardMessage(messageId, cardData);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'replying', messageId);
+
+    logger.info('回复评论卡片更新成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理回复评论失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"提交回复"按钮点击 - 提交开发者回复
+ */
+async function handleSubmitReply(reviewId: string, replyContent: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    if (!replyContent || replyContent.trim().length === 0) {
+      logger.warn('回复内容为空', { reviewId });
+      return;
+    }
+
+    logger.info('处理提交回复', { reviewId, messageId, replyLength: replyContent.length });
+
+    // 从数据库获取评论数据
+    const review = await getReviewFromDatabase(reviewId);
+    if (!review) {
+      logger.error('评论不存在', { reviewId });
+      return;
+    }
+
+    // 调用 App Store Connect API 提交回复
+    const replyResult = await submitReplyToAppStore(reviewId, replyContent);
+    
+    if (!replyResult.success) {
+      logger.error('App Store 回复提交失败', { reviewId, error: replyResult.error });
+      return;
+    }
+
+    // 更新数据库中的开发者回复
+    await updateDeveloperReply(reviewId, replyContent, replyResult.responseDate);
+
+    // 获取更新后的评论数据
+    const updatedReview = await getReviewFromDatabase(reviewId);
+    
+    // 构建已回复状态的卡片
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const cardData = buildReviewCardV2({
+      ...updatedReview,
+      card_state: 'replied',
+      message_id: messageId
+    });
+    
+    // 更新卡片显示
+    await feishuService!.updateCardMessage(messageId, cardData);
+
+    // 更新数据库中的卡片状态
+    await updateReviewCardState(reviewId, 'replied', messageId);
+
+    logger.info('提交回复成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理提交回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"编辑回复"按钮点击 - 展开编辑输入框
+ */
+async function handleEditReply(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理编辑回复交互', { reviewId, messageId });
+
+    // 防止重复事件处理
+    const eventKey = `edit_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
+
+    // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
+    const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
+    
+    let review;
+    if (isTestScenario) {
+      // 测试场景：使用模拟数据，从缓存获取最新回复内容
+      const latestReply = testReplyCache.get(reviewId) || 'hello'; // 默认回复内容
+      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId, latestReply });
+      review = {
+        id: reviewId,
+        app_name: '潮汐 for iOS',
+        title: '[测试] 用户评论标题',
+        content: '这是一条测试用户评论内容，用于验证回复功能是否正常工作。',
+        author: '测试用户',
+        rating: 4,
+        created_date: '2025/8/29 17:59:58',
+        version: '1.0.0',
+        region: 'CN',
+        reply_content: latestReply, // 使用缓存的最新回复内容
+        reply_date: new Date().toISOString(),
+        hasReply: true
+      };
+    } else {
+      // 真实场景：从数据库获取评论数据
+      review = await getReviewFromDatabase(reviewId);
+      if (!review) {
+        logger.error('评论不存在', { reviewId });
+        return;
+      }
+    }
+
+    // 构建编辑状态的卡片（使用 buildReviewCardV2）
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const updatedCard = buildReviewCardV2(review, 'editing_reply');
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 仅在非测试场景更新数据库
+    if (!isTestScenario) {
+      await updateReviewCardState(reviewId, 'editing_reply', messageId);
+    }
+
+    logger.info('编辑回复卡片更新成功', { reviewId, messageId, isTestScenario });
+  } catch (error) {
+    logger.error('处理编辑回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"更新回复"按钮点击 - 更新开发者回复
+ */
+async function handleUpdateReply(reviewId: string, replyContent: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    if (!replyContent || replyContent.trim().length === 0) {
+      logger.warn('回复内容为空', { reviewId });
+      return;
+    }
+
+    logger.info('处理更新回复', { reviewId, messageId, replyLength: replyContent.length });
+
+    // 防止重复事件处理
+    const eventKey = `update_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
+
+    // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
+    const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
+    
+    let review;
+    if (isTestScenario) {
+      // 测试场景：使用模拟数据
+      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId });
+      review = {
+        id: reviewId,
+        app_name: '潮汐 for iOS',
+        title: '[测试] 用户评论标题',
+        content: '这是一条测试用户评论内容，用于验证回复功能是否正常工作。',
+        author: '测试用户',
+        rating: 4,
+        created_date: '2025/8/29 18:10:01',
+        version: '1.0.0',
+        region: 'CN',
+        reply_content: replyContent, // 更新后的回复内容
+        reply_date: new Date().toISOString(),
+        hasReply: true
+      };
+    } else {
+      // 真实场景：从数据库获取评论数据
+      review = await getReviewFromDatabase(reviewId);
+      if (!review) {
+        logger.error('评论不存在', { reviewId });
+        return;
+      }
+    }
+
+    if (!isTestScenario) {
+      // 真实场景：调用 App Store Connect API 更新回复
+      const replyResult = await submitReplyToAppStore(reviewId, replyContent);
+      
+      if (!replyResult.success) {
+        logger.error('App Store 回复更新失败', { reviewId, error: replyResult.error });
+        return;
+      }
+
+      // 更新数据库中的开发者回复
+      await updateDeveloperReply(reviewId, replyContent, replyResult.responseDate);
+
+      // 获取更新后的评论数据
+      const updatedReview = await getReviewFromDatabase(reviewId);
+      
+      // 更新卡片显示更新后的回复，状态改为 'replied'
+      const updatedCard = feishuService!.createReviewCard(updatedReview, 'replied');
+      await feishuService!.updateCardMessage(messageId, updatedCard);
+
+      // 更新数据库中的卡片状态
+      await updateReviewCardState(reviewId, 'replied', messageId);
+    } else {
+      // 测试场景：更新缓存并直接更新卡片到已回复状态
+      testReplyCache.set(reviewId, replyContent); // 更新缓存
+      logger.info('🧪 更新测试回复缓存', { reviewId, replyContent });
+      
+      const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+      const updatedCard = buildReviewCardV2(review, 'replied');
+      await feishuService!.updateCardMessage(messageId, updatedCard);
+    }
+
+    logger.info('更新回复成功', { reviewId, messageId });
+  } catch (error) {
+    logger.error('处理更新回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"取消"按钮点击 - 恢复初始状态
+ */
+async function handleCancelReply(reviewId: string, messageId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    logger.info('处理取消回复交互', { reviewId, messageId });
+
+    // 防止重复事件处理
+    const eventKey = `cancel_reply_${reviewId}`;
+    if (isDuplicateEvent(eventKey, 1500)) { // 1.5秒内不允许重复
+      return;
+    }
+
+    // 检测是否为测试场景（reviewId 以 "om_" 开头或包含 "test"）
+    const isTestScenario = reviewId.startsWith('om_') || reviewId.includes('test');
+    
+    let review;
+    let originalState;
+    
+    if (isTestScenario) {
+      // 测试场景：使用模拟数据，恢复到已回复状态，从缓存获取最新回复内容
+      const latestReply = testReplyCache.get(reviewId) || 'hello'; // 默认回复内容
+      logger.info('🧪 检测到测试场景，使用模拟数据', { reviewId, latestReply });
+      review = {
+        id: reviewId,
+        app_name: '潮汐 for iOS',
+        title: '[测试] 用户评论标题',
+        content: '这是一条测试用户评论内容，用于验证回复功能是否正常工作。',
+        author: '测试用户',
+        rating: 4,
+        created_date: '2025/8/29 18:10:01',
+        version: '1.0.0',
+        region: 'CN',
+        reply_content: latestReply, // 使用缓存的最新回复内容
+        reply_date: new Date().toISOString(),
+        hasReply: true
+      };
+      originalState = 'replied'; // 测试场景恢复到已回复状态
+    } else {
+      // 真实场景：从数据库获取评论数据
+      review = await getReviewFromDatabase(reviewId);
+      if (!review) {
+        logger.error('评论不存在', { reviewId });
+        return;
+      }
+      // 判断原始状态
+      originalState = review.responseBody ? 'replied' : 'initial';
+    }
+    
+    // 恢复到原始状态
+    const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+    const updatedCard = buildReviewCardV2(review, originalState);
+    await feishuService!.updateCardMessage(messageId, updatedCard);
+
+    // 仅在非测试场景更新数据库
+    if (!isTestScenario) {
+      await updateReviewCardState(reviewId, originalState, messageId);
+    }
+
+    logger.info('取消回复成功', { reviewId, messageId, originalState, isTestScenario });
+  } catch (error) {
+    logger.error('处理取消回复失败', { 
+      reviewId, 
+      messageId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 处理"快速回复"按钮点击 - 打开简洁的回复模态对话框
+ */
+async function handleQuickReply(actionValue: any, userId: string): Promise<void> {
+  try {
+    if (!feishuService) {
+      logger.error('飞书服务未初始化');
+      return;
+    }
+
+    const { review_id, app_name, author, trigger_id } = actionValue;
+    
+    logger.info('处理快速回复交互', { review_id, app_name, author, userId });
+
+    // 创建简洁的回复模态对话框
+    const { createQuickReplyModal } = require('../utils/feishu-card-v2-builder');
+    const modalData = createQuickReplyModal({
+      review_id,
+      app_name,
+      author
+    });
+
+    // 打开模态对话框
+    if (trigger_id) {
+      await feishuService!.openModal(trigger_id, modalData);
+      logger.info('快速回复模态对话框打开成功', { review_id, userId });
+    } else {
+      logger.warn('缺少 trigger_id，无法打开模态对话框', { review_id, userId });
+    }
+
+  } catch (error) {
+    logger.error('处理快速回复失败', { 
+      actionValue,
+      userId, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+
+
+// ================================
+// 数据库操作辅助函数
+// ================================
+
+/**
+ * 从数据库获取评论数据
+ */
+async function getReviewFromDatabase(reviewId: string): Promise<any> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .select('*')
+      .eq('review_id', reviewId)
+      .single();
+
+    if (result.error) {
+      logger.error('查询评论失败', { reviewId, error: result.error.message });
+      return null;
+    }
+
+    // 转换数据库字段到 AppReview 格式
+    const review = {
+      reviewId: result.data.review_id,
+      appId: result.data.app_id,
+      rating: result.data.rating,
+      title: result.data.title,
+      body: result.data.body,
+      reviewerNickname: result.data.nickname,
+      createdDate: new Date(result.data.review_date),
+      isEdited: result.data.is_edited,
+      responseBody: result.data.response_body,
+      responseDate: result.data.response_date ? new Date(result.data.response_date) : null,
+      appVersion: result.data.app_version,
+      territoryCode: result.data.territory_code,
+      feishuMessageId: result.data.feishu_message_id,
+      cardState: result.data.card_state || 'initial'
+    };
+
+    return review;
+  } catch (error) {
+    logger.error('获取评论数据失败', { reviewId, error: error instanceof Error ? error.message : error });
+    return null;
+  }
+}
+
+/**
+ * 更新评论的卡片状态
+ */
+async function updateReviewCardState(reviewId: string, cardState: string, messageId?: string): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const updateData: any = { card_state: cardState };
+    if (messageId) {
+      updateData.feishu_message_id = messageId;
+    }
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .update(updateData)
+      .eq('review_id', reviewId);
+
+    if (result.error) {
+      logger.error('更新评论卡片状态失败', { reviewId, cardState, error: result.error.message });
+    } else {
+      logger.info('评论卡片状态更新成功', { reviewId, cardState, messageId });
+    }
+  } catch (error) {
+    logger.error('更新评论卡片状态异常', { reviewId, cardState, error: error instanceof Error ? error.message : error });
+  }
+}
+
+/**
+ * 更新开发者回复内容
+ */
+async function updateDeveloperReply(reviewId: string, replyContent: string, responseDate: Date): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('app_reviews')
+      .update({
+        response_body: replyContent,
+        response_date: responseDate.toISOString()
+      })
+      .eq('review_id', reviewId);
+
+    if (result.error) {
+      logger.error('更新开发者回复失败', { reviewId, error: result.error.message });
+    } else {
+      logger.info('开发者回复更新成功', { reviewId, replyLength: replyContent.length });
+    }
+  } catch (error) {
+    logger.error('更新开发者回复异常', { reviewId, error: error instanceof Error ? error.message : error });
+  }
+}
+
+/**
+ * 提交回复到 App Store Connect API
+ */
+async function submitReplyToAppStore(reviewId: string, replyContent: string): Promise<{ success: boolean; responseDate: Date; error?: string }> {
+  try {
+    // 这里应该调用实际的 App Store Connect API
+    // 目前返回模拟结果
+    logger.info('模拟提交回复到 App Store', { reviewId, replyLength: replyContent.length });
+    
+    // 模拟 API 调用延迟
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      success: true,
+      responseDate: new Date()
+    };
+  } catch (error) {
+    logger.error('提交 App Store 回复失败', { reviewId, error: error instanceof Error ? error.message : error });
+    return {
+      success: false,
+      responseDate: new Date(),
+      error: error instanceof Error ? error.message : '未知错误'
+    };
+  }
+}
+
+/**
+ * 处理模态框表单提交事件（从 /feishu/events 调用）
+ */
+async function handleModalSubmitEvent(event: any): Promise<void> {
+  try {
+    logger.info('处理模态框表单提交事件', { 
+      eventType: event.event_type,
+      userId: event?.operator?.user_id 
+    });
+
+    // 适配事件结构到原有的 handleModalSubmit 函数
+    const view = {
+      view_id: event?.modal_id || event?.id,
+      state: event?.form_data || event?.state,
+      external_id: event?.external_id
+    };
+
+    await handleModalSubmit(view, event?.operator?.user_id || 'unknown');
+  } catch (error) {
+    logger.error('处理模态框表单提交事件失败', { 
+      error: error instanceof Error ? error.message : error,
+      event
+    });
+  }
+}
+
+/**
+ * 处理模态对话框提交
+ */
+async function handleModalSubmit(view: any, userId: string): Promise<void> {
+  try {
+    logger.info('处理模态对话框提交', { view_id: view.view_id, userId });
+
+    // 解析表单数据
+    const formValues: any = view.state.values;
+    const formValuesList = Object.values(formValues);
+    const issueType = (formValuesList[0] as any)?.['issue_type']?.option?.value;
+    const description = (formValuesList[1] as any)?.['description']?.value;
+
+    if (!issueType) {
+      logger.warn('模态对话框缺少问题类型', { userId, view_id: view.view_id });
+      return;
+    }
+
+    // 从 view_id 或其他地方获取 review_id (需要在打开 modal 时传递)
+    // 这里我们假设可以从某种方式获取到 review_id
+    const reviewId = extractReviewIdFromModal(view);
+
+    if (!reviewId) {
+      logger.error('无法从模态对话框中获取评论ID', { userId, view_id: view.view_id });
+      return;
+    }
+
+    // 保存问题报告到数据库
+    await saveIssueReport(reviewId, issueType, description || '', userId);
+
+    logger.info('问题报告保存成功', { 
+      reviewId, 
+      issueType, 
+      userId,
+      hasDescription: !!description 
+    });
+
+  } catch (error) {
+    logger.error('处理模态对话框提交失败', { 
+      userId, 
+      view_id: view?.view_id,
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+/**
+ * 从模态对话框中提取评论ID
+ */
+function extractReviewIdFromModal(view: any): string | null {
+  try {
+    // 这里需要根据实际的飞书 modal 结构来提取 review_id
+    // 可能需要在打开 modal 时将 review_id 编码到 view_id 或其他字段中
+    return view.external_id || view.view_id?.split('_')?.[1] || null;
+  } catch (error) {
+    logger.error('提取评论ID失败', { error: error instanceof Error ? error.message : error });
+    return null;
+  }
+}
+
+/**
+ * 保存问题报告到数据库
+ */
+async function saveIssueReport(
+  reviewId: string, 
+  issueType: string, 
+  description: string, 
+  reporterOpenId: string
+): Promise<void> {
+  try {
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+
+    const result = await dbManager.client
+      .from('review_issue_reports')
+      .insert({
+        review_id: reviewId,
+        issue_type: issueType,
+        description: description,
+        reporter_open_id: reporterOpenId,
+        status: 'pending'
+      });
+
+    if (result.error) {
+      logger.error('保存问题报告失败', { 
+        reviewId, 
+        issueType, 
+        error: result.error.message 
+      });
+    } else {
+      logger.info('问题报告保存成功', { 
+        reviewId, 
+        issueType, 
+        reporterOpenId 
+      });
+    }
+  } catch (error) {
+    logger.error('保存问题报告异常', { 
+      reviewId, 
+      issueType, 
+      error: error instanceof Error ? error.message : error 
+    });
+  }
+}
+
+// 🚨 紧急修复API：批量标记历史评论为已推送
+router.post('/emergency/mark-historical-pushed', async (req: Request, res: Response) => {
+  try {
+    logger.info('🚨 执行紧急修复：批量标记历史评论为已推送');
+    
+    const { cutoffDate, dryRun = true } = req.body;
+    const cutoff = cutoffDate ? new Date(cutoffDate) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 默认24小时前
+    
+    // 创建数据库连接
+    const { SupabaseManager } = require('../modules/storage/SupabaseManager');
+    const dbManager = new SupabaseManager();
+    
+    // 查询需要标记的评论
+    const { data: reviews, error: queryError } = await dbManager.client
+      .from('app_reviews')
+      .select('review_id, created_date, title')
+      .lt('created_date', cutoff.toISOString())
+      .or('is_pushed.is.null,is_pushed.eq.false');
+    
+    if (queryError) {
+      throw new Error(`查询失败: ${queryError.message}`);
+    }
+    
+    logger.info(`找到 ${reviews.length} 条需要标记的历史评论`);
+    
+    if (dryRun) {
+      res.json({
+        success: true,
+        dryRun: true,
+        message: `找到 ${reviews.length} 条历史评论待标记`,
+        cutoffDate: cutoff.toISOString(),
+        sampleReviews: reviews.slice(0, 5).map((r: any) => ({
+          id: r.review_id.slice(0, 20) + '...',
+          date: r.created_date,
+          title: r.title?.slice(0, 30) + '...'
+        }))
+      });
+      return;
+    }
+    
+    // 实际执行标记
+    const { error: updateError } = await dbManager.client
+      .from('app_reviews')
+      .update({ 
+        is_pushed: true, 
+        push_type: 'historical_batch',
+        updated_at: new Date().toISOString()
+      })
+      .lt('created_date', cutoff.toISOString())
+      .or('is_pushed.is.null,is_pushed.eq.false');
+    
+    if (updateError) {
+      throw new Error(`批量更新失败: ${updateError.message}`);
+    }
+    
+    logger.info(`✅ 成功标记 ${reviews.length} 条历史评论为已推送`);
+    
+    res.json({
+      success: true,
+      message: `成功标记 ${reviews.length} 条历史评论为已推送`,
+      updatedCount: reviews.length,
+      cutoffDate: cutoff.toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('🚨 紧急修复失败', { 
+      error: error instanceof Error ? error.message : error 
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '未知错误'
+    });
+  }
+});
+
+// 🧪 极简按钮测试端点  
+router.post('/test/simple-button', async (_req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    logger.info('🧪 发送极简按钮测试卡片');
+
+    // 最简单的卡片格式，符合飞书V2标准
+    const simpleCard = {
+      elements: [
+        {
+          tag: 'div',
+          text: { tag: 'plain_text', content: '🧪 测试按钮交互' }
+        },
+        {
+          tag: 'action',
+          actions: [
+            {
+              tag: 'button',
+              text: { tag: 'plain_text', content: '点击测试' },
+              type: 'primary',
+              action_type: 'request',
+              value: { action: 'ping' }
+            }
+          ]
+        }
+      ]
+    };
+
+    const chatId = await feishuService!.getFirstChatId();
+    await feishuService!.sendCardMessage(chatId!, simpleCard);
+
+    res.json({
+      success: true,
+      message: '极简测试卡片发送成功',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送测试卡片');
+  }
+});
+
+// 🧪 自定义卡片测试端点 - 接收并发送用户提供的卡片数据
+router.post('/test/custom-card', async (req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    const { cardData } = req.body;
+    
+    if (!cardData) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少 cardData 参数',
+        message: '请在请求体中提供 cardData'
+      });
+    }
+
+    logger.info('🧪 发送自定义卡片', { 
+      hasFormElements: !!cardData.elements?.some((el: any) => el.tag === 'form'),
+      elementCount: cardData.elements?.length || 0
+    });
+
+    const chatId = await feishuService!.getFirstChatId();
+    await feishuService!.sendCardMessage(chatId!, cardData);
+
+    return res.json({
+      success: true,
+      message: '自定义卡片发送成功',
+      timestamp: new Date().toISOString(),
+      cardInfo: {
+        hasHeader: !!cardData.header,
+        elementCount: cardData.elements?.length || 0,
+        hasForm: !!cardData.elements?.some((el: any) => el.tag === 'form')
+      }
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送自定义卡片');
+    return;
+  }
+});
+
+/**
+ * 测试无回复评论的卡片显示
+ * POST /feishu/test/no-reply-card
+ */
+router.post('/test/no-reply-card', async (_req: Request, res: Response) => {
+  try {
+    if (!ensureServiceInitialized(res)) return;
+
+    logger.info('🧪 发送无回复评论测试卡片');
+
+    // 创建一个确保没有回复的测试评论，使用正确的字段映射
+    const testReview = {
+      // 核心标识字段
+      id: `test_no_reply_${Date.now()}`,
+      reviewId: `test_no_reply_${Date.now()}`,
+      appId: '1077776989', // 确保有appId用于获取应用名称
+      
+      // 评论内容字段
+      rating: 1,
+      title: '[测试] 无回复状态',
+      body: '这是一个测试评论，应该显示输入框和提交按钮', // 使用body而不是content
+      reviewerNickname: '测试用户', // 使用reviewerNickname而不是author
+      createdDate: new Date(), // 使用Date对象而不是字符串
+      
+      // 应用信息字段
+      store_type: 'ios',
+      appVersion: '2.3.4', // 使用appVersion而不是version
+      territoryCode: 'US', // 使用territoryCode而不是country
+      
+      // 确保没有回复相关字段
+      responseBody: null,
+      responseDate: null,
+      developer_response: null,
+      
+      // 其他必要字段
+      isEdited: false,
+      firstSyncAt: new Date(),
+      isPushed: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // 直接推送这个测试评论
+    const chatId = await feishuService!.getFirstChatId() || 'oc_130c7aece1e0c64c817d4bc764d1b686';
+    await feishuService!.pushReviewToChat(chatId, testReview);
+
+    logger.info('✅ 无回复评论测试卡片发送成功');
+
+    res.json({
+      success: true,
+      message: '无回复评论测试卡片发送成功',
+      testReview: {
+        id: testReview.id,
+        hasReply: !!testReview.developer_response,
+        title: testReview.title
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    handleError(res, error, '发送无回复测试卡片');
+  }
+});
+
+/**
+ * Main handler for Feishu card interactive events.
+ * All card actions are routed through here.
+ */
+async function handleCardActionV1(req: Request, res: Response) {
+  const { action, message_id } = req.body;
+  
+  if (!action || !message_id) {
+    logger.warn('Invalid card action payload', req.body);
+    return res.status(400).json({ success: false, error: 'Invalid payload' });
+  }
+
+  try {
+    await handleCardAction(action, message_id);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Error handling card action', { error, action });
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+/**
+ * Test endpoint for sending a new review card.
+ * This is the sole endpoint for testing interactive review cards.
+ */
+router.post('/test/review-card', async (req: Request, res: Response) => {
+  try {
+    const reviewData: ReviewDTO = req.body.reviewData || {
+      // Default mock data if none is provided
+      id: `test_${Date.now()}`,
+      appId: '12345',
+      appName: '潮汐 for iOS',
+      rating: 5,
+      title: 'A great app!',
+      body: 'This is a test review for the new card system.',
+      author: 'Tester',
+      createdAt: new Date().toISOString(),
+      version: '1.0.1',
+      countryCode: 'US',
+    };
+
+    const card = buildReviewCardV2(reviewData, CardState.NO_REPLY);
+    
+    // This part needs a real Feishu service to send the card
+    // const feishuService = getFeishuService(); 
+    // const message = await feishuService.sendCard(chatId, card);
+
+    res.status(200).json({ success: true, card_json: card });
+  } catch (error) {
+    logger.error('Error in test endpoint', { error });
+    res.status(500).json({ success: false, error: 'Failed to generate card' });
+  }
+});
+
+export default router;

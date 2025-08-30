@@ -6,7 +6,7 @@ import { SupabaseManager } from './modules/storage/SupabaseManager';
 import { FeishuServiceV1 } from './services/FeishuServiceV1';
 import { ReviewSyncService } from './services/ReviewSyncService';
 import { SmartReviewSyncService } from './services/SmartReviewSyncService';
-import feishuRoutes, { initializeFeishuServiceV1 } from './api/feishu-routes';
+import feishuRoutes, { setFeishuService } from './api/feishu-routes';
 import logger from './utils/logger';
 // IPusher类型已通过FeishuServiceV1直接使用
 
@@ -115,7 +115,7 @@ async function main() {
     
     // 配置飞书v1 API路由
     if (feishuService) {
-      initializeFeishuServiceV1(feishuService);
+      setFeishuService(feishuService);
       app.use('/feishu', feishuRoutes);
       logger.info('🔗 已配置飞书v1 API路由');
     }

@@ -233,3 +233,5 @@ export interface ReplyResponse {
   success: boolean;
   responseDate: Date;
 }
+
+export * from './feishu';

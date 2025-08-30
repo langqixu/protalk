@@ -84,3 +84,7 @@ export interface ModeStatus {
   lastSwitch: Date;
   switchCount: number;
 }
+
+export interface FeishuCardV2 {
+  // ... (interface content)
+}
