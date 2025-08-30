@@ -62,15 +62,24 @@ router.get('/appstore-detailed', async (_req: Request, res: Response) => {
         
         // 如果私钥缺少换行符，尝试修复
         if (!privateKey.includes('\n')) {
-          privateKey = privateKey
-            .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
-            .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
-            // 在Base64内容中每64个字符添加换行符
-            .replace(/^-----BEGIN PRIVATE KEY-----\n(.+)\n-----END PRIVATE KEY-----$/s, (_match, content) => {
-              const base64Content = content.replace(/\s/g, '');
-              const formattedContent = base64Content.match(/.{1,64}/g)?.join('\n') || base64Content;
-              return `-----BEGIN PRIVATE KEY-----\n${formattedContent}\n-----END PRIVATE KEY-----`;
-            });
+          // 移除所有空白字符，然后重新格式化
+          const cleanKey = privateKey.replace(/\s/g, '');
+          
+          // 提取header, body, footer
+          const headerMatch = cleanKey.match(/-----BEGIN[A-Z\s]+-----/);
+          const footerMatch = cleanKey.match(/-----END[A-Z\s]+-----/);
+          
+          if (headerMatch && footerMatch) {
+            const header = headerMatch[0];
+            const footer = footerMatch[0];
+            const bodyStart = cleanKey.indexOf(header) + header.length;
+            const bodyEnd = cleanKey.indexOf(footer);
+            const body = cleanKey.substring(bodyStart, bodyEnd);
+            
+            // 重新格式化：header + 换行 + 每64字符一行的body + 换行 + footer
+            const formattedBody = body.match(/.{1,64}/g)?.join('\n') || body;
+            privateKey = `${header}\n${formattedBody}\n${footer}`;
+          }
         }
 
         const token = jwt.sign(payload, privateKey, {
@@ -86,6 +95,13 @@ router.get('/appstore-detailed', async (_req: Request, res: Response) => {
             iat: new Date(payload.iat * 1000).toISOString(),
             exp: new Date(payload.exp * 1000).toISOString(),
             aud: payload.aud
+          },
+          privateKeyFixed: !process.env['APP_STORE_PRIVATE_KEY']!.includes('\n'),
+          formattedKeyFormat: {
+            hasNewlines: privateKey.includes('\n'),
+            lineCount: privateKey.split('\n').length,
+            firstLine: privateKey.split('\n')[0],
+            lastLine: privateKey.split('\n')[privateKey.split('\n').length - 1]
           }
         };
 
