@@ -28,12 +28,6 @@ export function buildReviewCardV2(review: ReviewDTO, state: CardState): FeishuCa
     header: {
       title: { tag: 'plain_text', content: `${review.appName} - 新评论通知` },
       template: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green',
-      ud_icon: {
-        token: review.rating <= 2 ? 'warning_filled' : review.rating === 3 ? 'info_filled' : 'checkmark_filled',
-        style: {
-          color: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green'
-        }
-      },
     },
     elements: [
       buildReviewInfo(review),
