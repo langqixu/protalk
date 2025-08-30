@@ -523,7 +523,7 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
   try {
     if (!ensureServiceInitialized(res)) return;
 
-    const { template = 'demo', chat_id } = req.body;
+    const { template = 'demo', chat_id, reviewData } = req.body;
 
     let chatId = chat_id;
     if (!chatId) {
@@ -569,8 +569,8 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
         break;
       
       case 'review':
-        // 🔧 优化模拟评论数据，使用真实appId和更丰富的测试内容
-        const mockReview = {
+        // 🔧 使用传入的reviewData或默认模拟数据
+        const mockReview = reviewData || {
           reviewId: 'test_review_' + Date.now(),
           appId: '1077776989', // 潮汐应用的真实ID
           rating: 5,
