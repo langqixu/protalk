@@ -428,11 +428,14 @@ export class SupabaseManager implements IDatabaseManager {
           {
             review_id: review.id,
             app_id: review.appId,
+            app_name: review.appName,
             title: review.title,
             body: review.body,
             rating: review.rating,
             nickname: review.author,
             review_date: review.createdAt,
+            version: review.version,
+            country_code: review.countryCode,
             response_body: review.developerResponse?.body || null,
             response_date: review.developerResponse?.lastModified || null,
             is_edited: false,
@@ -512,14 +515,14 @@ export class SupabaseManager implements IDatabaseManager {
     return {
       id: dbRecord.review_id,
       appId: dbRecord.app_id,
-      appName: 'App Name', // 需要从app配置或其他地方获取
+      appName: dbRecord.app_name || 'Unknown App',
       rating: dbRecord.rating,
       title: dbRecord.title || '',
       body: dbRecord.body || '',
       author: dbRecord.nickname || '',
       createdAt: dbRecord.review_date || dbRecord.created_at,
-      version: dbRecord.version || '1.0.0', // 需要添加到数据库schema
-      countryCode: dbRecord.country_code || 'CN', // 需要添加到数据库schema
+      version: dbRecord.version || '1.0.0',
+      countryCode: dbRecord.country_code || 'CN',
       developerResponse: dbRecord.response_body ? {
         body: dbRecord.response_body,
         lastModified: dbRecord.response_date || dbRecord.updated_at

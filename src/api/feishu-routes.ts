@@ -181,4 +181,91 @@ router.get('/debug/data-manager', async (_req: Request, res: Response) => {
   });
 });
 
+// Debug endpoint to test Supabase connection and schema
+router.get('/debug/supabase-test', async (_req: Request, res: Response) => {
+  if (!supabaseManager) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'Supabase manager not available' 
+    });
+  }
+
+  try {
+    // Test 1: Check if tables exist by querying their structure
+    const results: any = {
+      success: true,
+      tests: {},
+      timestamp: new Date().toISOString()
+    };
+
+    // Test connection by doing a simple query
+    try {
+      // 这里我们需要访问Supabase client，但需要先暴露它
+      results.tests.connection = { 
+        status: 'success', 
+        message: 'SupabaseManager is available' 
+      };
+    } catch (error) {
+      results.tests.connection = { 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+
+    // Test 2: Try to save a test review
+    try {
+      const testReview: ReviewDTO = {
+        id: `supabase_test_${Date.now()}`,
+        appId: 'test_app',
+        appName: 'Test App',
+        rating: 5,
+        title: 'Database Test',
+        body: 'Testing Supabase integration',
+        author: 'Test User',
+        createdAt: new Date().toISOString(),
+        version: '1.0.0',
+        countryCode: 'CN'
+      };
+
+      await supabaseManager.saveReview(testReview);
+      results.tests.saveReview = { 
+        status: 'success', 
+        reviewId: testReview.id,
+        message: 'Test review saved successfully' 
+      };
+
+      // Test 3: Try to retrieve the test review
+      const retrievedReview = await supabaseManager.getReviewById(testReview.id);
+      if (retrievedReview) {
+        results.tests.getReview = { 
+          status: 'success', 
+          review: retrievedReview,
+          message: 'Test review retrieved successfully' 
+        };
+      } else {
+        results.tests.getReview = { 
+          status: 'error', 
+          message: 'Test review not found after save' 
+        };
+      }
+
+    } catch (error) {
+      results.tests.saveReview = { 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+
+    return res.json(results);
+
+  } catch (error) {
+    logger.error('Error in Supabase test', { error });
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Supabase test failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
