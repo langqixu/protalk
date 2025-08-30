@@ -138,7 +138,6 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             input_type: 'multiline_text',
             rows: 3,
             required: true,
-            width: 'fill',
           },
           {
             tag: 'action',
@@ -220,7 +219,6 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             rows: 3,
             default_value: review.developerResponse?.body || '',
             required: true,
-            width: 'fill',
           },
           {
             tag: 'action',
