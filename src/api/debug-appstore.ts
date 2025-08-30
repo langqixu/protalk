@@ -66,25 +66,27 @@ router.get('/appstore-detailed', async (_req: Request, res: Response) => {
         // 修复私钥格式 - 确保PEM格式正确
         let privateKey = process.env['APP_STORE_PRIVATE_KEY']!;
         
-        // 如果私钥缺少换行符，尝试修复
+        // 如果私钥缺少换行符，使用简单的替换方法
         if (!privateKey.includes('\n')) {
-          // 移除所有空白字符，然后重新格式化
-          const cleanKey = privateKey.replace(/\s/g, '');
+          // 简单替换：在header后和footer前添加换行符，body部分每64字符换行
+          privateKey = privateKey
+            .replace(/-----BEGIN PRIVATE KEY-----/, '-----BEGIN PRIVATE KEY-----\n')
+            .replace(/-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----');
           
-          // 提取header, body, footer
-          const headerMatch = cleanKey.match(/-----BEGIN[A-Z\s]+-----/);
-          const footerMatch = cleanKey.match(/-----END[A-Z\s]+-----/);
-          
-          if (headerMatch && footerMatch) {
-            const header = headerMatch[0];
-            const footer = footerMatch[0];
-            const bodyStart = cleanKey.indexOf(header) + header.length;
-            const bodyEnd = cleanKey.indexOf(footer);
-            const body = cleanKey.substring(bodyStart, bodyEnd);
+          // 找到并格式化中间的Base64部分
+          const lines = privateKey.split('\n');
+          if (lines.length >= 3) {
+            const header = lines[0];
+            const footer = lines[lines.length - 1];
+            const body = lines.slice(1, -1).join('').replace(/\s/g, '');
             
-            // 重新格式化：header + 换行 + 每64字符一行的body + 换行 + footer
-            const formattedBody = body.match(/.{1,64}/g)?.join('\n') || body;
-            privateKey = `${header}\n${formattedBody}\n${footer}`;
+            // 将body每64字符分成一行
+            const formattedBodyLines = [];
+            for (let i = 0; i < body.length; i += 64) {
+              formattedBodyLines.push(body.substring(i, i + 64));
+            }
+            
+            privateKey = [header, ...formattedBodyLines, footer].join('\n');
           }
         }
 
