@@ -90,7 +90,9 @@ router.post('/test/review-card', async (req: Request, res: Response) => {
         return res.status(503).json({ success: false, error: 'Feishu service not initialized.' });
     }
 
-    if (!mockDataManager) {
+    // 检查数据管理器是否可用
+    const dataManager = isMockMode ? mockDataManager : supabaseManager;
+    if (!dataManager) {
         return res.status(503).json({ success: false, error: 'Data manager not initialized.' });
     }
 
@@ -108,9 +110,9 @@ router.post('/test/review-card', async (req: Request, res: Response) => {
             countryCode: 'US',
         };
         
-        // Save this review to the mock data manager
-        await mockDataManager.saveReview(reviewData);
-        logger.info('测试评论数据已保存到模拟数据管理器', { reviewId: reviewData.id });
+        // Save this review to the data manager
+        await dataManager.saveReview(reviewData);
+        logger.info('测试评论数据已保存到数据管理器', { reviewId: reviewData.id, mode: isMockMode ? 'mock' : 'supabase' });
 
         const card = buildReviewCardV2(reviewData, CardState.NO_REPLY);
         const chatId = await feishuService.getFirstChatId();
@@ -121,14 +123,14 @@ router.post('/test/review-card', async (req: Request, res: Response) => {
         const messageResult = await feishuService.sendCardMessage(chatId, card);
         
         // 建立消息ID和评论ID的映射关系
-        if (messageResult?.message_id) {
-            await mockDataManager.mapMessageToReview(messageResult.message_id, reviewData.id);
+        if (messageResult?.message_id && dataManager.mapMessageToReview) {
+            await dataManager.mapMessageToReview(messageResult.message_id, reviewData.id);
             logger.info('消息映射已建立', { messageId: messageResult.message_id, reviewId: reviewData.id });
         }
         
         return res.status(200).json({ 
             success: true, 
-            message: 'Test card sent and saved to mock data manager.',
+            message: `Test card sent and saved to ${isMockMode ? 'mock' : 'supabase'} data manager.`,
             reviewId: reviewData.id,
             messageId: messageResult?.message_id
         });
