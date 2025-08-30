@@ -11,6 +11,7 @@ import debugAppStoreRoutes from './debug-appstore';
 import testPrivateKeyRoutes from './test-private-key';
 import realReviewSyncRoutes from './real-review-sync';
 import simpleRealReviewTestRoutes from './simple-real-review-test';
+import configDebugRoutes from './config-debug';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
@@ -332,5 +333,6 @@ router.use('/debug', debugAppStoreRoutes);
 router.use('/debug', testPrivateKeyRoutes);
 router.use('/debug', realReviewSyncRoutes);
 router.use('/debug', simpleRealReviewTestRoutes);
+router.use('/debug', configDebugRoutes);
 
 export default router;
