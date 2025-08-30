@@ -10,6 +10,15 @@ import logger from './logger';
 import { CardState, ReviewDTO } from '../types/review';
 
 /**
+ * 根据评分返回对应的emoji图标
+ */
+function getEmojiIcon(rating: number): string {
+  if (rating <= 2) return '❌'; // 差评
+  if (rating === 3) return '⚠️'; // 中评  
+  return '✅'; // 好评
+}
+
+/**
  * Builds an interactive App Store review card using Feishu Card V2 components.
  * This is the single source of truth for generating review cards.
  *
@@ -26,7 +35,7 @@ export function buildReviewCardV2(review: ReviewDTO, state: CardState): FeishuCa
       update_multi: true,
     },
     header: {
-      title: { tag: 'plain_text', content: `${review.appName} - 新评论通知` },
+      title: { tag: 'plain_text', content: `${getEmojiIcon(review.rating)} ${review.appName} - 新评论通知` },
       template: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green',
     },
     elements: [
@@ -60,7 +69,7 @@ function buildReviewInfo(review: ReviewDTO): any {
         is_short: false,
         text: {
           tag: 'lark_md',
-          content: `**${review.title}**\n\n${review.body}`,
+          content: `**${review.title}**\n${review.body}`,
         },
       },
       {
@@ -129,7 +138,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
           {
             tag: 'input',
             name: 'reply_content',
-            placeholder: { tag: 'plain_text', content: '回复用户...' },
+            placeholder: { tag: 'plain_text', content: '输入您对用户的回复内容...' },
             input_type: 'multiline_text',
             rows: 3,
             required: true,
@@ -213,7 +222,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
           {
             tag: 'input',
             name: 'reply_content',
-            placeholder: { tag: 'plain_text', content: '编辑回复内容...' },
+            placeholder: { tag: 'plain_text', content: '修改您的回复内容...' },
             input_type: 'multiline_text',
             rows: 3,
             default_value: review.developerResponse?.body || '',
