@@ -141,52 +141,36 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             width: 'fill',
           },
           {
-            tag: 'column_set',
-            flex_mode: 'none',
-            horizontal_spacing: 'default',
-            columns: [
+            tag: 'action',
+            actions: [
               {
-                tag: 'column',
-                width: 'auto',
-                elements: [
+                tag: 'button',
+                text: { tag: 'plain_text', content: '提交' },
+                type: 'primary',
+                name: 'submit_button',
+                form_action_type: 'submit',
+                behaviors: [
                   {
-                    tag: 'button',
-                    text: { tag: 'plain_text', content: '提交' },
-                    type: 'primary',
-                    name: 'submit_button',
-                    form_action_type: 'submit',
-                    size: 'medium',
-                    behaviors: [
-                      {
-                        type: 'callback',
-                        value: {
-                          action: CardState.REPLIED,
-                          review_id: review.id,
-                        },
-                      },
-                    ],
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
                   },
                 ],
               },
               {
-                tag: 'column',
-                width: 'auto',
-                elements: [
+                tag: 'button',
+                text: { tag: 'plain_text', content: '取消' },
+                type: 'default',
+                name: 'cancel_button',
+                behaviors: [
                   {
-                    tag: 'button',
-                    text: { tag: 'plain_text', content: '取消' },
-                    type: 'default',
-                    name: 'cancel_button',
-                    size: 'medium',
-                    behaviors: [
-                      {
-                        type: 'callback',
-                        value: {
-                          action: CardState.NO_REPLY,
-                          review_id: review.id,
-                        },
-                      },
-                    ],
+                    type: 'callback',
+                    value: {
+                      action: CardState.NO_REPLY,
+                      review_id: review.id,
+                    },
                   },
                 ],
               },
@@ -239,52 +223,36 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             width: 'fill',
           },
           {
-            tag: 'column_set',
-            flex_mode: 'none',
-            horizontal_spacing: 'default',
-            columns: [
+            tag: 'action',
+            actions: [
               {
-                tag: 'column',
-                width: 'auto',
-                elements: [
+                tag: 'button',
+                text: { tag: 'plain_text', content: '更新' },
+                type: 'primary',
+                name: 'update_button',
+                form_action_type: 'submit',
+                behaviors: [
                   {
-                    tag: 'button',
-                    text: { tag: 'plain_text', content: '更新' },
-                    type: 'primary',
-                    name: 'update_button',
-                    form_action_type: 'submit',
-                    size: 'medium',
-                    behaviors: [
-                      {
-                        type: 'callback',
-                        value: {
-                          action: CardState.REPLIED,
-                          review_id: review.id,
-                        },
-                      },
-                    ],
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
                   },
                 ],
               },
               {
-                tag: 'column',
-                width: 'auto',
-                elements: [
+                tag: 'button',
+                text: { tag: 'plain_text', content: '取消' },
+                type: 'default',
+                name: 'cancel_edit_button',
+                behaviors: [
                   {
-                    tag: 'button',
-                    text: { tag: 'plain_text', content: '取消' },
-                    type: 'default',
-                    name: 'cancel_edit_button',
-                    size: 'medium',
-                    behaviors: [
-                      {
-                        type: 'callback',
-                        value: {
-                          action: CardState.REPLIED,
-                          review_id: review.id,
-                        },
-                      },
-                    ],
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
                   },
                 ],
               },
