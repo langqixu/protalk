@@ -1,5 +1,7 @@
 # Protalk 应用评论服务 - 上线总结
 
+> **🚨 DEPRECATED**: 该文档为历史上线总结，当前版本请参考 `docs/PRD.md` 和 `PROJECT_SUMMARY.md`。保留仅供历史参考。
+
 ## 🚀 上线状态
 
 **状态：** ✅ 已成功上线

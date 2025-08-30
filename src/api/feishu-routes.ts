@@ -7,6 +7,7 @@ import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
 import { SupabaseManager } from '../modules/storage/SupabaseManager';
 import { MockDataManager } from '../modules/storage/MockDataManager';
 import { ReplyManagerService } from '../services/ReplyManagerService';
+import debugAppStoreRoutes from './debug-appstore';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
@@ -322,5 +323,8 @@ router.get('/debug/store-integration', async (_req: Request, res: Response) => {
     });
   }
 });
+
+// 挂载App Store诊断路由
+router.use('/debug', debugAppStoreRoutes);
 
 export default router;

@@ -1,5 +1,7 @@
 # 🚀 Protalk v2.1.0 部署状态
 
+> **🚨 DEPRECATED**: 该文档为 v2.1.0 部署状态，当前版本请参考 `docs/deployment/DEPLOYMENT.md`。保留仅供历史参考。
+
 **更新时间**: 2025-08-28  
 **版本**: v2.1.0  
 **目标平台**: Zeabur

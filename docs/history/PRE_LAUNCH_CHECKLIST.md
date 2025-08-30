@@ -1,5 +1,7 @@
 # Protalk App Review Service: 上线前检查清单与部署计划
 
+> **🚨 DEPRECATED**: 该文档为历史上线检查清单，当前版本请参考 `docs/deployment/DEPLOYMENT.md` 和测试指南。保留仅供历史参考。
+
 **文档版本:** 1.1  
 **状态:** 审核完成  
 **最后更新:** 2024年1月

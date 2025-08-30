@@ -1,0 +1,60 @@
+---
+alwaysApply: true
+description: "定义项目在代码、文档、配置等方面的具体格式约定，确保产出物的一致性。"
+version: 1.1
+---
+# 具体约定 (Conventions)
+
+为降低协作成本和提高可维护性，所有项目产出物都应遵循以下具体约定。
+
+### 1. 项目结构 (Code Structure)
+
+-   **`src/`**: 应用程序主源码目录。
+    -   **`src/api/`**: API 入口层。包含路由定义和请求处理，将业务逻辑委托给 `services`。
+    -   **`src/services/`**: 核心业务逻辑层。负责编排 `modules` 以完成特定任务。
+    -   **`src/modules/`**: 功能模块层。包含自成一体的功能模块（如 `feishu`, `fetcher`, `storage`）。
+    -   **`src/utils/`**: 通用辅助函数。与特定业务逻辑无关、可共享的函数。
+    -   **`src/types/`**: 共享类型定义。
+    -   **`src/config/`**: 应用程序配置。
+
+### 2. 文档结构 (Docs Structure)
+
+-   **`docs/`**: 项目文档主目录。
+    -   **`docs/api/`**: API 接口文档。
+    -   **`docs/deployment/`**: 部署相关文档。
+    -   **`docs/guides/`**: 设置和使用指南。
+    -   **`docs/troubleshooting/`**: 故障排查手册。
+    -   **`docs/history/`**: 历史文档存档 (标记为 DEPRECATED)。
+    -   **`docs/implementation/`**: 具体技术方案的实现细节。
+    -   **`PRD.md`**: 最高优先级的产品需求文档。
+    -   **`DOCUMENTATION_STATUS.md`**: 文档状态清单，作为文档的索引。
+    -   **`docs/adr/`**: Architecture Decision Records，记录关键架构决策。
+
+### 3. 代码风格 (Code Style)
+
+-   **自动化优先**: 项目已集成 Prettier 和 ESLint。所有代码在提交前 **必须** 通过自动格式化和 lint 检查。
+-   **命名**:
+    -   变量/函数: `camelCase`
+    -   类/接口/类型: `PascalCase`
+    -   命名必须清晰、有描述性，避免模糊的缩写 (例如，使用 `reviewSyncService` 而非 `rvs`）。
+-   **函数**:
+    -   保持函数短小，专注于单一功能（单一职责原则）。
+    -   优先使用 `async/await` 处理异步，并用 `try...catch` 妥善处理错误。
+-   **注释**:
+    -   代码应尽可能自解释。
+    -   只为复杂的业务逻辑或可能引起困惑的设计添加注释，解释“为什么”这么做，而不是“代码做了什么”。
+-   **Commit Message**: 采用 [Conventional Commits](https://www.conventionalcommits.org/) 规范，例如 `feat(review): 支持批量推送`。
+-   **Test Coverage 基线**: 行覆盖率 ≥ 80%，分支覆盖率 ≥ 70%，CI 中强制阈值。
+
+### 4. 配置管理 (Configuration)
+
+-   **环境变量**: 所有敏感信息（API密钥、数据库连接字符串等）或随环境变化的配置，**必须** 通过环境变量管理。
+-   **模板文件**: `env.example` 文件是所有必需环境变量的模板，必须保持最新。
+-   **禁止硬编码**: 严禁在代码中硬编码任何密钥或敏感配置。
+-   **多环境层级**: `local` → `staging` → `production`，变量命名统一使用前缀 `PROTALK_`。
+
+### 5. 依赖与 CI
+
+-   **包管理器**: 使用 `pnpm`（lockfile 提交至仓库）。
+-   **钩子工具**: 通过 Husky + lint-staged 在提交前自动运行 `eslint --fix` 与 `prettier --write`。
+-   **CI 检查**: GitHub Actions 运行 `npm run lint && npm run test -- --coverage`，并校验 Conventional Commits 格式。
