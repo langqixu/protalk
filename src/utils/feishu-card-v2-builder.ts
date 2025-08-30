@@ -27,7 +27,12 @@ export function buildReviewCardV2(review: ReviewDTO, state: CardState): FeishuCa
     },
     header: {
       title: { tag: 'plain_text', content: `${review.appName} - 新评论通知` },
-      template: review.rating <= 2 ? 'red' : review.rating === 5 ? 'green' : 'blue',
+      template: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green',
+      icon: {
+        tag: 'standard_icon',
+        token: review.rating <= 2 ? 'warning_filled' : review.rating === 3 ? 'info_filled' : 'checkmark_filled',
+        color: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green'
+      },
     },
     elements: [
       buildReviewInfo(review),
@@ -47,49 +52,58 @@ function buildReviewInfo(review: ReviewDTO): any {
   const formattedDate = new Date(review.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
   return {
-    tag: 'div',
-    fields: [
+    tag: 'column_set',
+    flex_mode: 'none',
+    columns: [
       {
-        is_short: false,
-        text: {
-          tag: 'lark_md',
-          content: `${stars} (${review.rating}/5)`,
-        },
-      },
-      {
-        is_short: false,
-        text: {
-          tag: 'lark_md',
-          content: `**${review.title}**\n${review.body}`,
-        },
-      },
-      {
-        is_short: true,
-        text: {
-          tag: 'lark_md',
-          content: `**用户:** ${review.author}`,
-        },
-      },
-      {
-        is_short: true,
-        text: {
-          tag: 'lark_md',
-          content: `**地区:** ${review.countryCode}`,
-        },
-      },
-      {
-        is_short: true,
-        text: {
-          tag: 'lark_md',
-          content: `**版本:** ${review.version}`,
-        },
-      },
-      {
-        is_short: true,
-        text: {
-          tag: 'lark_md',
-          content: `**时间:** ${formattedDate}`,
-        },
+        tag: 'column',
+        width: 'weighted',
+        weight: 1,
+        elements: [
+          {
+            tag: 'div',
+            text: {
+              tag: 'lark_md',
+              content: `${stars} (${review.rating}/5)\n\n**${review.title}**\n${review.body}`,
+            },
+          },
+          { tag: 'hr' },
+          {
+            tag: 'column_set',
+            flex_mode: 'bisect',
+            horizontal_spacing: 'large',
+            columns: [
+              {
+                tag: 'column',
+                width: 'weighted',
+                weight: 1,
+                elements: [
+                  {
+                    tag: 'div',
+                    text: {
+                      tag: 'lark_md',
+                      content: `👤 **用户:** ${review.author}\n📱 **版本:** ${review.version}`,
+                    },
+                  },
+                ],
+              },
+              {
+                tag: 'column',
+                width: 'weighted',
+                weight: 1,
+                elements: [
+                  {
+                    tag: 'div',
+                    text: {
+                      tag: 'lark_md',
+                      content: `🇨🇳 **地区:** ${review.countryCode}\n📅 **时间:** ${formattedDate}`,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
     ],
   };
@@ -129,14 +143,16 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
           {
             tag: 'input',
             name: 'reply_content',
-            placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
+            placeholder: { tag: 'plain_text', content: '回复用户...' },
             input_type: 'multiline_text',
             rows: 3,
             required: true,
+            width: 'fill',
           },
           {
             tag: 'column_set',
             flex_mode: 'none',
+            horizontal_spacing: 'default',
             columns: [
               {
                 tag: 'column',
@@ -148,6 +164,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'primary',
                     name: 'submit_button',
                     form_action_type: 'submit',
+                    size: 'medium',
                     behaviors: [
                       {
                         type: 'callback',
@@ -169,6 +186,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     text: { tag: 'plain_text', content: '取消' },
                     type: 'default',
                     name: 'cancel_button',
+                    size: 'medium',
                     behaviors: [
                       {
                         type: 'callback',
@@ -222,15 +240,17 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
           {
             tag: 'input',
             name: 'reply_content',
-            placeholder: { tag: 'plain_text', content: '请输入回复内容...' },
+            placeholder: { tag: 'plain_text', content: '编辑回复内容...' },
             input_type: 'multiline_text',
             rows: 3,
             default_value: review.developerResponse?.body || '',
             required: true,
+            width: 'fill',
           },
           {
             tag: 'column_set',
             flex_mode: 'none',
+            horizontal_spacing: 'default',
             columns: [
               {
                 tag: 'column',
@@ -242,6 +262,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'primary',
                     name: 'update_button',
                     form_action_type: 'submit',
+                    size: 'medium',
                     behaviors: [
                       {
                         type: 'callback',
@@ -263,6 +284,7 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     text: { tag: 'plain_text', content: '取消' },
                     type: 'default',
                     name: 'cancel_edit_button',
+                    size: 'medium',
                     behaviors: [
                       {
                         type: 'callback',
