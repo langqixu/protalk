@@ -429,10 +429,10 @@ export class SupabaseManager implements IDatabaseManager {
             review_id: review.id,
             app_id: review.appId,
             title: review.title,
-            body: review.body,
+            body: review.body || 'No content',
             rating: review.rating,
-            reviewer_nickname: review.author,
-            created_date: review.createdAt,
+            reviewer_nickname: review.author || 'Unknown User',
+            created_date: review.createdAt || new Date().toISOString(),
             app_version: review.version,
             territory_code: review.countryCode,
             response_body: review.developerResponse?.body || null,
@@ -448,8 +448,19 @@ export class SupabaseManager implements IDatabaseManager {
         ]);
 
       if (error) {
-        logger.error('Error saving review to Supabase', { error });
-        throw error;
+        logger.error('Error saving review to Supabase', { 
+          error,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          reviewData: {
+            review_id: review.id,
+            app_id: review.appId,
+            title: review.title,
+            rating: review.rating
+          }
+        });
+        throw new Error(`Supabase save error: ${error.message} (${error.code})`);
       }
       logger.info('Successfully saved review to Supabase', { reviewId: review.id });
     } catch (error) {
