@@ -10,6 +10,7 @@ import { ReplyManagerService } from '../services/ReplyManagerService';
 import debugAppStoreRoutes from './debug-appstore';
 import testPrivateKeyRoutes from './test-private-key';
 import realReviewSyncRoutes from './real-review-sync';
+import simpleRealReviewTestRoutes from './simple-real-review-test';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
@@ -330,5 +331,6 @@ router.get('/debug/store-integration', async (_req: Request, res: Response) => {
 router.use('/debug', debugAppStoreRoutes);
 router.use('/debug', testPrivateKeyRoutes);
 router.use('/debug', realReviewSyncRoutes);
+router.use('/debug', simpleRealReviewTestRoutes);
 
 export default router;
