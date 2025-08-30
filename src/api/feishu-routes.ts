@@ -9,6 +9,7 @@ import { MockDataManager } from '../modules/storage/MockDataManager';
 import { ReplyManagerService } from '../services/ReplyManagerService';
 import debugAppStoreRoutes from './debug-appstore';
 import testPrivateKeyRoutes from './test-private-key';
+import realReviewSyncRoutes from './real-review-sync';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
@@ -328,5 +329,6 @@ router.get('/debug/store-integration', async (_req: Request, res: Response) => {
 // 挂载App Store诊断路由
 router.use('/debug', debugAppStoreRoutes);
 router.use('/debug', testPrivateKeyRoutes);
+router.use('/debug', realReviewSyncRoutes);
 
 export default router;

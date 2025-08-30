@@ -90,24 +90,41 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
     logger.info('开始同步App Store评论', { appId });
     
     const allReviews: AppReview[] = [];
-    // 🔍 修复API调用：使用App Store Connect API支持的基本参数
-    let nextUrl: string | undefined = `/v1/apps/${appId}/customerReviews?sort=-createdDate&limit=100&include=response`;
+    // 🔍 使用正确的App Store Connect API端点和参数
+    let nextUrl: string | undefined = `/v1/apps/${appId}/customerReviews?sort=-createdDate&limit=50&include=response`;
 
     try {
       while (nextUrl) {
-        const reviews = await this.fetchReviewsPage(nextUrl!);
+        logger.debug('正在获取评论页面', { appId, url: nextUrl });
+        
+        const reviews = await this.fetchReviewsPage(nextUrl);
+        
+        // 设置appId（因为API返回的数据中不包含appId）
+        reviews.forEach(review => {
+          review.appId = appId;
+        });
+        
         allReviews.push(...reviews);
         
         // 获取下一页URL
         const response: any = await this.httpClient.get(nextUrl);
         nextUrl = response.data.links?.next || undefined;
         
-        logger.debug('获取评论页面', { 
+        logger.debug('获取评论页面完成', { 
           appId, 
           pageSize: reviews.length, 
           total: allReviews.length,
           hasNext: !!nextUrl 
         });
+        
+        // 限制每次最多获取200条评论（防止API超时）
+        if (allReviews.length >= 200) {
+          logger.info('已达到单次同步上限，停止获取更多评论', { 
+            appId, 
+            totalReviews: allReviews.length 
+          });
+          break;
+        }
       }
 
       logger.info('App Store评论同步完成', { 
@@ -119,7 +136,8 @@ export class AppStoreReviewFetcher implements IReviewFetcher {
     } catch (error) {
       logger.error('App Store评论同步失败', { 
         appId, 
-        error: error instanceof Error ? error.message : error 
+        error: error instanceof Error ? error.message : error,
+        errorDetails: error
       });
       throw error;
     }
