@@ -848,51 +848,35 @@ export function buildReviewCardV2(reviewData: {
           margin: '0px 0px 8px 0px'
         },
         {
-          tag: 'column_set',
-          horizontal_spacing: '8px',
-          horizontal_align: 'right',
-          columns: [
+          tag: 'action',
+          actions: [
             {
-              tag: 'column',
-              width: 'auto',
-              elements: [
-                {
-                  tag: 'button',
-                  text: { tag: 'plain_text', content: '更新' },
-                  type: 'primary',
-                  size: 'medium',
-                  action_type: 'request',
-                  form_action_type: 'submit',
-                  name: 'update_button'
-                }
-              ]
+              tag: 'button',
+              text: { tag: 'plain_text', content: '更新' },
+              type: 'primary',
+              size: 'medium',
+              action_type: 'request',
+              form_action_type: 'submit',
+              name: 'update_button'
             },
             {
-              tag: 'column',
-              width: 'auto',
-              elements: [
-                {
-                  tag: 'button',
-                  text: { tag: 'plain_text', content: '取消' },
-                  type: 'default',
-                  size: 'medium',
-                  action_type: 'request',
-                  name: 'cancel_button',
-                  value: {
-                    action: 'cancel_edit',
-                    review_id: reviewData.id,
-                    app_name: reviewData.app_name,
-                    author: reviewData.author
-                  }
-                }
-              ]
+              tag: 'button',
+              text: { tag: 'plain_text', content: '取消' },
+              type: 'default',
+              size: 'medium',
+              action_type: 'request',
+              name: 'cancel_button',
+              value: {
+                action: 'cancel_edit',
+                review_id: reviewData.id,
+                app_name: reviewData.app_name,
+                author: reviewData.author
+              }
             }
           ]
         }
       ],
-      direction: 'vertical',
-      padding: '4px 0px 4px 0px',
-      margin: '0px 0px 0px 0px'
+      direction: 'vertical'
     });
 
   } else {
