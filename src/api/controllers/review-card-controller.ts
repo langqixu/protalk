@@ -117,9 +117,9 @@ export async function handleCardAction(action: any, messageId: string): Promise<
 
     case CardState.REPLIED:
       // This would handle form submission
-      const replyContent = action.formValue?.reply_content || review.developerResponse?.body;
+      const replyContent = action.form_value?.reply_content || action.formValue?.reply_content || review.developerResponse?.body;
       if (!replyContent) {
-        logger.error('回复内容为空');
+        logger.error('回复内容为空', { action, form_value: action.form_value, formValue: action.formValue });
         return {
           toast: {
             type: 'error',
@@ -128,7 +128,7 @@ export async function handleCardAction(action: any, messageId: string): Promise<
         };
       }
       
-      logger.info('提交回复', { reviewId, replyLength: replyContent.length });
+      logger.info('提交回复', { reviewId, replyLength: replyContent.length, replyContent });
       
       // 更新评论回复
       await updateReviewReply(reviewId, replyContent);
