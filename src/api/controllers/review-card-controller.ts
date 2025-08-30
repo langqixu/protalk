@@ -8,6 +8,7 @@ import { buildReviewCardV2 } from '../../utils/feishu-card-v2-builder';
 import logger from '../../utils/logger';
 // import { FeishuServiceV1 } from '../../services/FeishuServiceV1';
 import { SupabaseManager } from '../../modules/storage/SupabaseManager';
+import { ReplyManagerService } from '../../services/ReplyManagerService';
 // import { MockDataManager } from '../../modules/storage/MockDataManager';
 
 // 数据管理器接口，统一模拟和真实数据管理器
@@ -27,8 +28,15 @@ interface IDataManager {
 // }
 
 let dataManager: IDataManager;
+let replyManager: ReplyManagerService | null = null;
+
 export function setControllerDataManager(manager: IDataManager) {
     dataManager = manager;
+}
+
+export function setControllerReplyManager(manager: ReplyManagerService) {
+    replyManager = manager;
+    logger.info('回复管理器已设置到控制器');
 }
 
 // 向后兼容的方法
@@ -128,9 +136,46 @@ export async function handleCardAction(action: any, messageId: string): Promise<
         };
       }
       
-      logger.info('提交回复', { reviewId, replyLength: replyContent.length, replyContent });
+      logger.info('提交回复', { reviewId, replyLength: replyContent.length });
       
-      // 更新评论回复
+      // 使用回复管理器提交回复（如果可用）
+      if (replyManager) {
+        try {
+          const result = await replyManager.submitReply(reviewId, replyContent, messageId);
+          
+          if (result.success) {
+            // 重新获取更新后的评论数据
+            const updatedReview = await getReview(reviewId);
+            if (updatedReview) {
+              updatedReview.messageId = messageId;
+              const repliedCard = buildReviewCardV2(updatedReview, result.newCardState);
+              
+              return {
+                toast: {
+                  type: 'success',
+                  content: '回复提交成功！正在同步到应用商店...'
+                },
+                card: {
+                  type: 'raw',
+                  data: repliedCard
+                }
+              };
+            }
+          } else {
+            return {
+              toast: {
+                type: 'error',
+                content: `回复提交失败: ${result.error || '未知错误'}`
+              }
+            };
+          }
+        } catch (error) {
+          logger.error('回复管理器提交失败，回退到基础模式', { error });
+          // 回退到原有逻辑
+        }
+      }
+      
+      // 回退到原有逻辑（兼容性保证）
       await updateReviewReply(reviewId, replyContent);
       
       // 重新获取更新后的评论数据
@@ -138,7 +183,7 @@ export async function handleCardAction(action: any, messageId: string): Promise<
       if (updatedReview) {
         updatedReview.messageId = messageId;
         const repliedCard = buildReviewCardV2(updatedReview, CardState.REPLIED);
-        logger.info('回复提交成功并更新卡片');
+        logger.info('回复提交成功并更新卡片（基础模式）');
         return {
           toast: {
             type: 'success',

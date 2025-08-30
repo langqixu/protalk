@@ -152,6 +152,25 @@ export interface EnvConfig {
     port: number;
     apiKey?: string | undefined;
   };
+  // 新增：应用商店集成配置
+  stores?: {
+    appstore?: {
+      enabled: boolean;
+      issuerId: string;
+      keyId: string;
+      privateKey: string;
+      bundleIds: string[];
+      rateLimitPerMinute?: number;
+      timeout?: number;
+    };
+    googleplay?: {
+      enabled: boolean;
+      serviceAccountKey: string;
+      packageNames: string[];
+      rateLimitPerMinute?: number;
+      timeout?: number;
+    };
+  };
 }
 
 // 统一的反馈抓取器接口

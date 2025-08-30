@@ -6,7 +6,9 @@ import { SupabaseManager } from './modules/storage/SupabaseManager';
 import { FeishuServiceV1 } from './services/FeishuServiceV1';
 import { ReviewSyncService } from './services/ReviewSyncService';
 import { SmartReviewSyncService } from './services/SmartReviewSyncService';
-import feishuRoutes, { setFeishuService, setSupabaseManager } from './api/feishu-routes';
+import feishuRoutes, { setFeishuService, setSupabaseManager, setReplyManager } from './api/feishu-routes';
+import { setControllerReplyManager } from './api/controllers/review-card-controller';
+import { ReplyManagerService } from './services/ReplyManagerService';
 import { setControllerSupabaseService } from './api/controllers/review-card-controller';
 import logger from './utils/logger';
 // IPusher类型已通过FeishuServiceV1直接使用
@@ -32,6 +34,26 @@ async function main() {
     });
     setControllerSupabaseService(db);
     setSupabaseManager(db); // 新增：注入到飞书路由中
+    
+    // 3.1 初始化回复管理器（如果启用了应用商店集成）
+    let replyManager: ReplyManagerService | null = null;
+    if (envConfig.stores) {
+      try {
+        replyManager = new ReplyManagerService(
+          db,
+          envConfig.stores,
+          undefined // feishuService将在后面设置
+        );
+        setControllerReplyManager(replyManager);
+        setReplyManager(replyManager);
+        logger.info('✅ 回复管理器初始化成功');
+      } catch (error) {
+        logger.error('❌ 回复管理器初始化失败', { error });
+        logger.warn('⚠️  将使用基础回复模式（仅数据库存储）');
+      }
+    } else {
+      logger.info('⚠️  应用商店集成未启用，使用基础回复模式');
+    }
     
     // 初始化飞书v1服务
     let feishuService: FeishuServiceV1 | null = null;

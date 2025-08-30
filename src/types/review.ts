@@ -34,6 +34,50 @@ export enum CardState {
 }
 
 /**
+ * 回复状态枚举
+ */
+export enum ReplyStatus {
+  NONE = 'none',              // 无回复
+  PENDING = 'pending',        // 提交中
+  SUBMITTED = 'submitted',    // 已提交，等待发布
+  PUBLISHED = 'published',    // 已发布
+  FAILED = 'failed',          // 提交失败
+  UPDATING = 'updating',      // 更新中
+  DELETED = 'deleted'         // 已删除
+}
+
+/**
+ * 应用商店特定数据
+ */
+export interface StoreSpecificData {
+  // App Store Connect特定字段
+  appstore?: {
+    reviewResponseId?: string;    // 开发者回复的ID
+    customerReviewId?: string;    // 原评论在ASC中的ID
+    bundleId?: string;           // 应用Bundle ID
+  };
+  
+  // Google Play特定字段（预留）
+  googleplay?: {
+    packageName?: string;        // 应用包名
+    developerReplyId?: string;   // 开发者回复ID
+    clusterId?: string;          // 评论聚类ID
+  };
+}
+
+/**
+ * 回复状态追踪
+ */
+export interface ReplyStatusInfo {
+  status: ReplyStatus;           // 当前状态
+  lastAttempt?: string;          // 最后尝试时间 (ISO 8601)
+  errorMessage?: string;         // 错误信息
+  retryCount?: number;           // 重试次数
+  submittedAt?: string;          // 提交时间 (ISO 8601)
+  publishedAt?: string;          // 发布时间 (ISO 8601)
+}
+
+/**
  * Data Transfer Object for an App Store Review.
  * This unified interface is used across the application to ensure consistency.
  */
@@ -59,6 +103,11 @@ export interface ReviewDTO {
     body: string;
     lastModified: string; // ISO 8601 date string
   };
+  
+  // --- Store Integration (新增) ---
+  storeType?: 'appstore' | 'googleplay'; // 应用商店类型
+  storeSpecificData?: StoreSpecificData;  // 商店特定数据
+  replyStatus?: ReplyStatusInfo;          // 回复状态信息
   
   // --- Card-specific data (optional) ---
   messageId?: string;

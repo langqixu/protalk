@@ -47,6 +47,13 @@ function loadEnvConfig(): EnvConfig {
     throw new Error(`缺少必需的环境变量: ${missingVars.join(', ')}`);
   }
 
+  // 检查应用商店集成配置
+  const storeIntegrationEnabled = process.env['ENABLE_STORE_INTEGRATION'] === 'true';
+  
+  if (storeIntegrationEnabled) {
+    logger.info('应用商店集成已启用');
+  }
+
   const config: EnvConfig = {
     appStore: {
       issuerId: process.env['APP_STORE_ISSUER_ID']!,
@@ -72,7 +79,26 @@ function loadEnvConfig(): EnvConfig {
     server: {
       port: parseInt(process.env['PORT'] || '3000', 10),
       apiKey: process.env['API_KEY'] || undefined
-    }
+    },
+    // 应用商店集成配置
+    stores: storeIntegrationEnabled ? {
+      appstore: {
+        enabled: process.env['APPSTORE_INTEGRATION_ENABLED'] === 'true',
+        issuerId: process.env['APP_STORE_ISSUER_ID']!,
+        keyId: process.env['APP_STORE_KEY_ID']!,
+        privateKey: process.env['APP_STORE_PRIVATE_KEY']!,
+        bundleIds: (process.env['APP_STORE_BUNDLE_IDS'] || '').split(',').filter(id => id.trim()),
+        rateLimitPerMinute: parseInt(process.env['APPSTORE_RATE_LIMIT'] || '200', 10),
+        timeout: parseInt(process.env['APPSTORE_TIMEOUT'] || '30000', 10)
+      },
+      googleplay: {
+        enabled: process.env['GOOGLEPLAY_INTEGRATION_ENABLED'] === 'true',
+        serviceAccountKey: process.env['GOOGLE_PLAY_SERVICE_ACCOUNT_KEY'] || '',
+        packageNames: (process.env['GOOGLE_PLAY_PACKAGE_NAMES'] || '').split(',').filter(name => name.trim()),
+        rateLimitPerMinute: parseInt(process.env['GOOGLEPLAY_RATE_LIMIT'] || '100', 10),
+        timeout: parseInt(process.env['GOOGLEPLAY_TIMEOUT'] || '30000', 10)
+      }
+    } : undefined
   };
 
   logger.info('环境配置加载成功', {
@@ -82,6 +108,13 @@ function loadEnvConfig(): EnvConfig {
       hasAppId: !!config.feishu.appId,
       hasAppSecret: !!config.feishu.appSecret,
       mode: config.feishu.mode
+    },
+    storeIntegration: {
+      enabled: storeIntegrationEnabled,
+      appstoreEnabled: config.stores?.appstore?.enabled || false,
+      googleplayEnabled: config.stores?.googleplay?.enabled || false,
+      appstoreBundleIds: config.stores?.appstore?.bundleIds?.length || 0,
+      googleplayPackages: config.stores?.googleplay?.packageNames?.length || 0
     }
   });
   return config;

@@ -6,11 +6,13 @@ import { CardState, ReviewDTO } from '../types/review';
 import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
 import { SupabaseManager } from '../modules/storage/SupabaseManager';
 import { MockDataManager } from '../modules/storage/MockDataManager';
+import { ReplyManagerService } from '../services/ReplyManagerService';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
 let mockDataManager: MockDataManager | null = null;
 let supabaseManager: SupabaseManager | null = null;
+let replyManager: ReplyManagerService | null = null;
 
 // 检查是否启用模拟模式
 const isMockMode = process.env['MOCK_MODE'] === 'true' || process.env['NODE_ENV'] === 'test';
@@ -46,6 +48,11 @@ export function setSupabaseManager(manager: SupabaseManager) {
     logger.info('立即激活Supabase数据管理器');
     setControllerDataManager(supabaseManager);
   }
+}
+
+export function setReplyManager(manager: ReplyManagerService) {
+  replyManager = manager;
+  logger.info('ReplyManager已设置到飞书路由');
 }
 
 // Main event handler for Feishu callbacks
@@ -266,6 +273,52 @@ router.get('/debug/supabase-test', async (_req: Request, res: Response) => {
       success: false, 
       error: 'Supabase test failed',
       details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Debug endpoint: Test Store Integration
+router.get('/debug/store-integration', async (_req: Request, res: Response) => {
+  try {
+    const results: any = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      storeIntegration: {
+        enabled: false,
+        availableConnectors: [],
+        statuses: {},
+        permissions: {}
+      }
+    };
+
+    // Check if reply manager is available
+    if (replyManager) {
+      results.storeIntegration.enabled = true;
+      results.storeIntegration.availableConnectors = replyManager.getSupportedStores();
+      
+      try {
+        // Get connector statuses
+        const statuses = await replyManager.getConnectorStatuses();
+        results.storeIntegration.statuses = Object.fromEntries(statuses);
+        
+        // Test permissions
+        const permissions = await replyManager.testConnectorPermissions();
+        results.storeIntegration.permissions = Object.fromEntries(permissions);
+        
+      } catch (error) {
+        results.storeIntegration.error = error instanceof Error ? error.message : 'Unknown error';
+      }
+    } else {
+      results.storeIntegration.message = 'Reply manager not initialized';
+    }
+
+    return res.json(results);
+  } catch (error) {
+    logger.error('Error in store integration test', { error });
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
     });
   }
 });
