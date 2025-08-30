@@ -250,9 +250,11 @@ router.get('/debug/supabase-test', async (_req: Request, res: Response) => {
       }
 
     } catch (error) {
+      logger.error('Detailed error in saveReview test', { error });
       results.tests.saveReview = { 
         status: 'error', 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : JSON.stringify(error)
       };
     }
 
