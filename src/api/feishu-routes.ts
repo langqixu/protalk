@@ -40,6 +40,12 @@ export function setFeishuService(service: FeishuServiceV1) {
 export function setSupabaseManager(manager: SupabaseManager) {
   supabaseManager = manager;
   logger.info('SupabaseManager已设置');
+  
+  // 立即检查是否应该使用Supabase
+  if (!isMockMode && supabaseManager) {
+    logger.info('立即激活Supabase数据管理器');
+    setControllerDataManager(supabaseManager);
+  }
 }
 
 // Main event handler for Feishu callbacks
@@ -156,6 +162,21 @@ router.get('/debug/mock-data', async (_req: Request, res: Response) => {
         logger.error('Error getting mock data stats', { error });
         return res.status(500).json({ success: false, error: 'Failed to get stats' });
     }
+});
+
+// Debug endpoint to check current data manager status
+router.get('/debug/data-manager', async (_req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    status: {
+      isMockMode: isMockMode,
+      mockManagerAvailable: !!mockDataManager,
+      supabaseManagerAvailable: !!supabaseManager,
+      currentMode: isMockMode ? 'mock' : 'supabase',
+      environment: process.env['NODE_ENV'] || 'unknown',
+      mockModeEnv: process.env['MOCK_MODE'] || 'undefined'
+    }
+  });
 });
 
 export default router;
