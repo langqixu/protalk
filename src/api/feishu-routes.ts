@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import { FeishuServiceV1 } from '../services/FeishuServiceV1';
-import { handleCardAction, setControllerFeishuService, setControllerDataManager } from './controllers/review-card-controller';
+import { handleCardAction, setControllerDataManager } from './controllers/review-card-controller';
 import { CardState, ReviewDTO } from '../types/review';
 import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
 // import { SupabaseManager } from '../modules/storage/SupabaseManager';
@@ -16,7 +16,7 @@ const isMockMode = process.env['MOCK_MODE'] === 'true' || process.env['NODE_ENV'
 
 export function setFeishuService(service: FeishuServiceV1) {
   feishuService = service;
-  setControllerFeishuService(service); // Inject service into controller
+  // setControllerFeishuService(service); // Inject service into controller
   
   // 初始化数据管理器
   if (isMockMode) {
@@ -49,11 +49,16 @@ router.post('/events', async (req: Request, res: Response) => {
     if (event_type === 'card.action.trigger' && action && message_id) {
       try {
         logger.info('Processing card.action.trigger event', { action });
-        await handleCardAction(action, message_id);
-        return res.status(200).json({ success: true });
+        const response = await handleCardAction(action, message_id);
+        return res.status(200).json(response || { success: true });
       } catch (error) {
         logger.error('Error handling card action', { error, action });
-        return res.status(500).json({ success: false, error: 'Internal server error' });
+        return res.status(200).json({
+          toast: {
+            type: 'error',
+            content: '处理出错，请稍后重试'
+          }
+        });
       }
     }
   }
