@@ -213,6 +213,18 @@ export class MockDataManager {
         version: '2.3.4',
         countryCode: 'CN',
       },
+      {
+        id: 'test_final_perfection_014',
+        appId: 'com.test.app',
+        appName: '潮汐 for iOS',
+        rating: 4,
+        title: '最终完美版本验证',
+        body: '测试所有界面优化：灰色meta信息、填满的输入框、优化的按钮布局和间距控制',
+        author: '完美优化验证用户',
+        createdAt: '2024-01-01T00:00:00Z',
+        version: '2.3.4',
+        countryCode: 'CN',
+      },
     ];
 
     commonTestReviews.forEach(review => {
