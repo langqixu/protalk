@@ -140,7 +140,23 @@ export class AppStoreConnector implements IStoreConnector {
         aud: 'appstoreconnect-v1',
       };
 
-      const token = jwt.sign(payload, this.config.privateKey, {
+      // 修复私钥格式 - 确保PEM格式正确
+      let privateKey = this.config.privateKey;
+      
+      // 如果私钥缺少换行符，尝试修复
+      if (!privateKey.includes('\n')) {
+        privateKey = privateKey
+          .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+          .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
+          // 在Base64内容中每64个字符添加换行符
+          .replace(/^-----BEGIN PRIVATE KEY-----\n(.+)\n-----END PRIVATE KEY-----$/s, (_match, content) => {
+            const base64Content = content.replace(/\s/g, '');
+            const formattedContent = base64Content.match(/.{1,64}/g)?.join('\n') || base64Content;
+            return `-----BEGIN PRIVATE KEY-----\n${formattedContent}\n-----END PRIVATE KEY-----`;
+          });
+      }
+
+      const token = jwt.sign(payload, privateKey, {
         algorithm: 'ES256',
         keyid: this.config.keyId,
       });
