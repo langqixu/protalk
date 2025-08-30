@@ -39,7 +39,13 @@ router.get('/appstore-detailed', async (_req: Request, res: Response) => {
         hasBeginMarker: process.env['APP_STORE_PRIVATE_KEY'].includes('-----BEGIN'),
         hasEndMarker: process.env['APP_STORE_PRIVATE_KEY'].includes('-----END'),
         estimatedLength: process.env['APP_STORE_PRIVATE_KEY'].length,
-        hasNewlines: process.env['APP_STORE_PRIVATE_KEY'].includes('\n')
+        hasNewlines: process.env['APP_STORE_PRIVATE_KEY'].includes('\n'),
+        keyType: process.env['APP_STORE_PRIVATE_KEY'].includes('BEGIN PRIVATE KEY') ? 'PKCS#8' :
+                 process.env['APP_STORE_PRIVATE_KEY'].includes('BEGIN EC PRIVATE KEY') ? 'EC' :
+                 process.env['APP_STORE_PRIVATE_KEY'].includes('BEGIN RSA PRIVATE KEY') ? 'RSA' : 'UNKNOWN',
+        isECKey: process.env['APP_STORE_PRIVATE_KEY'].includes('EC PRIVATE KEY'),
+        isPKCS8: process.env['APP_STORE_PRIVATE_KEY'].includes('BEGIN PRIVATE KEY'),
+        actualHeader: process.env['APP_STORE_PRIVATE_KEY'].match(/-----BEGIN[^-]+-----/)?.[0] || 'NOT_FOUND'
       } : null
     };
 
@@ -193,7 +199,8 @@ router.get('/appstore-detailed', async (_req: Request, res: Response) => {
         results.diagnostics.jwtGeneration = {
           success: false,
           error: errorDetails.message,
-          details: errorDetails.details
+          details: errorDetails.details,
+          suggestion: 'App Store Connect需要P-256 (ES256)格式的私钥。请确认您的私钥是从App Store Connect API密钥页面下载的.p8文件'
         };
       }
     } else {
