@@ -428,17 +428,20 @@ export class SupabaseManager implements IDatabaseManager {
           {
             review_id: review.id,
             app_id: review.appId,
-            app_name: review.appName,
             title: review.title,
             body: review.body,
             rating: review.rating,
-            nickname: review.author,
-            review_date: review.createdAt,
-            version: review.version,
-            country_code: review.countryCode,
+            reviewer_nickname: review.author,
+            created_date: review.createdAt,
+            app_version: review.version,
+            territory_code: review.countryCode,
             response_body: review.developerResponse?.body || null,
             response_date: review.developerResponse?.lastModified || null,
             is_edited: false,
+            first_sync_at: new Date().toISOString(),
+            is_pushed: false,
+            push_type: 'new',
+            review_state: 'active',
             created_at: review.createdAt,
             updated_at: new Date().toISOString()
           }
@@ -456,22 +459,17 @@ export class SupabaseManager implements IDatabaseManager {
   }
 
   /**
-   * Maps a Feishu message ID to a review ID for future lookups.
+   * Maps a Feishu message ID to a review ID by updating the review record.
    */
   async mapMessageToReview(messageId: string, reviewId: string): Promise<void> {
     try {
       const { error } = await this.client
-        .from('comment_mappings')
-        .upsert([
-          {
-            message_id: messageId,
-            review_id: reviewId,
-            app_id: 'unknown', // 可以后续优化
-            store_type: 'appstore',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ]);
+        .from('app_reviews')
+        .update({ 
+          feishu_message_id: messageId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('review_id', reviewId);
 
       if (error) {
         logger.error('Error mapping message to review', { messageId, reviewId, error });
@@ -491,9 +489,9 @@ export class SupabaseManager implements IDatabaseManager {
   async getReviewIdByMessageId(messageId: string): Promise<string | null> {
     try {
       const { data, error } = await this.client
-        .from('comment_mappings')
+        .from('app_reviews')
         .select('review_id')
-        .eq('message_id', messageId)
+        .eq('feishu_message_id', messageId)
         .single();
 
       if (error) {
@@ -515,18 +513,32 @@ export class SupabaseManager implements IDatabaseManager {
     return {
       id: dbRecord.review_id,
       appId: dbRecord.app_id,
-      appName: dbRecord.app_name || 'Unknown App',
+      appName: this.getAppNameFromId(dbRecord.app_id), // 根据app_id获取应用名
       rating: dbRecord.rating,
       title: dbRecord.title || '',
       body: dbRecord.body || '',
-      author: dbRecord.nickname || '',
-      createdAt: dbRecord.review_date || dbRecord.created_at,
-      version: dbRecord.version || '1.0.0',
-      countryCode: dbRecord.country_code || 'CN',
+      author: dbRecord.reviewer_nickname || '',
+      createdAt: dbRecord.created_date || dbRecord.created_at,
+      version: dbRecord.app_version || '1.0.0',
+      countryCode: dbRecord.territory_code || 'CN',
       developerResponse: dbRecord.response_body ? {
         body: dbRecord.response_body,
         lastModified: dbRecord.response_date || dbRecord.updated_at
-      } : undefined
+      } : undefined,
+      messageId: dbRecord.feishu_message_id || undefined
     };
+  }
+
+  /**
+   * 根据app_id获取应用名称
+   * TODO: 可以从配置文件或其他数据源获取
+   */
+  private getAppNameFromId(appId: string): string {
+    const appNameMap: { [key: string]: string } = {
+      'com.test.app': '潮汐 for iOS',
+      'com.moreless.tide': '潮汐 for iOS',
+      // 可以添加更多应用映射
+    };
+    return appNameMap[appId] || 'Unknown App';
   }
 }
