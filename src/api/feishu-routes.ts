@@ -22,22 +22,25 @@ router.post('/events', async (req: Request, res: Response) => {
     return res.status(200).json({ challenge: req.body.challenge });
   }
 
-  // Try to parse both possible event structures
-  const eventData = req.body.event || req.body;
-  const { type, action, message_id } = eventData;
-  
-  if (type === 'interactive' && action && message_id) {
-    try {
-      logger.info('Processing interactive card action', { action });
-      await handleCardAction(action, message_id);
-      return res.status(200).json({ success: true });
-    } catch (error) {
-      logger.error('Error handling card action', { error, action });
-      return res.status(500).json({ success: false, error: 'Internal server error' });
+  // Handle Feishu Card 2.0 callback structure
+  if (req.body.header && req.body.event) {
+    const { event_type } = req.body.header;
+    const { action, context } = req.body.event;
+    const message_id = context?.open_message_id;
+
+    if (event_type === 'card.action.trigger' && action && message_id) {
+      try {
+        logger.info('Processing card.action.trigger event', { action });
+        await handleCardAction(action, message_id);
+        return res.status(200).json({ success: true });
+      } catch (error) {
+        logger.error('Error handling card action', { error, action });
+        return res.status(500).json({ success: false, error: 'Internal server error' });
+      }
     }
   }
 
-  logger.warn('Unhandled event type or invalid payload', { type });
+  logger.warn('Unhandled event or invalid payload', { body: req.body });
   return res.status(200).json({ success: true, message: 'Event received but not handled' });
 });
 
