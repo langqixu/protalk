@@ -15,13 +15,20 @@ export function setFeishuService(service: FeishuServiceV1) {
 
 // Main event handler for Feishu callbacks
 router.post('/events', async (req: Request, res: Response) => {
+  logger.info('Received Feishu event callback', { body: req.body });
+
   if (req.body.challenge) {
+    logger.info('Responding to challenge request');
     return res.status(200).json({ challenge: req.body.challenge });
   }
 
-  const { type, action, message_id } = req.body.event || {};
+  // Try to parse both possible event structures
+  const eventData = req.body.event || req.body;
+  const { type, action, message_id } = eventData;
+  
   if (type === 'interactive' && action && message_id) {
     try {
+      logger.info('Processing interactive card action', { action });
       await handleCardAction(action, message_id);
       return res.status(200).json({ success: true });
     } catch (error) {
@@ -30,7 +37,8 @@ router.post('/events', async (req: Request, res: Response) => {
     }
   }
 
-  return res.status(200).json({ success: true, message: 'Event received' });
+  logger.warn('Unhandled event type or invalid payload', { type });
+  return res.status(200).json({ success: true, message: 'Event received but not handled' });
 });
 
 // Unified test endpoint
