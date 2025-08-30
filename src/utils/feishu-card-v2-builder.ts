@@ -27,7 +27,12 @@ export function buildReviewCardV2(review: ReviewDTO, state: CardState): FeishuCa
     },
     header: {
       title: { tag: 'plain_text', content: `${review.appName} - 新评论通知` },
-      template: review.rating <= 2 ? 'red' : review.rating === 5 ? 'green' : 'blue',
+      template: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green',
+      icon: {
+        tag: 'standard_icon',
+        token: review.rating <= 2 ? 'warning_filled' : review.rating === 3 ? 'info_filled' : 'checkmark_filled',
+        color: review.rating <= 2 ? 'red' : review.rating === 3 ? 'yellow' : 'green'
+      },
     },
     elements: [
       buildReviewInfo(review),
@@ -60,7 +65,7 @@ function buildReviewInfo(review: ReviewDTO): any {
         is_short: false,
         text: {
           tag: 'lark_md',
-          content: `**${review.title}**\n${review.body}`,
+          content: `**${review.title}**\n\n${review.body}`,
         },
       },
       {
@@ -74,7 +79,7 @@ function buildReviewInfo(review: ReviewDTO): any {
         is_short: true,
         text: {
           tag: 'lark_md',
-          content: `🇨🇳 **地区:** ${review.countryCode}`,
+          content: `🌍 **地区:** ${review.countryCode}`,
         },
       },
       {
