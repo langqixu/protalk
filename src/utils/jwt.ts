@@ -11,11 +11,37 @@ export class JWTManager {
   }
 
   /**
-   * 处理私钥中的转义字符
+   * 处理私钥格式 - 确保PEM格式正确
    */
   private processPrivateKey(privateKey: string): string {
-    // 处理转义字符，将 \\n 替换为实际的换行符
-    return privateKey.replace(/\\n/g, '\n');
+    // 首先处理转义字符
+    let processedKey = privateKey.replace(/\\n/g, '\n');
+    
+    // 如果私钥缺少换行符，使用简单的替换方法
+    if (!processedKey.includes('\n')) {
+      // 简单替换：在header后和footer前添加换行符，body部分每64字符换行
+      processedKey = processedKey
+        .replace(/-----BEGIN PRIVATE KEY-----/, '-----BEGIN PRIVATE KEY-----\n')
+        .replace(/-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----');
+      
+      // 找到并格式化中间的Base64部分
+      const lines = processedKey.split('\n');
+      if (lines.length >= 3) {
+        const header = lines[0];
+        const footer = lines[lines.length - 1];
+        const body = lines.slice(1, -1).join('').replace(/\s/g, '');
+        
+        // 将body每64字符分成一行
+        const formattedBodyLines = [];
+        for (let i = 0; i < body.length; i += 64) {
+          formattedBodyLines.push(body.substring(i, i + 64));
+        }
+        
+        processedKey = [header, ...formattedBodyLines, footer].join('\n');
+      }
+    }
+    
+    return processedKey;
   }
 
   /**
