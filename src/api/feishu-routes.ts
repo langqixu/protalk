@@ -569,17 +569,23 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
         break;
       
       case 'review':
-        // 🔧 使用传入的reviewData或默认模拟数据
+        // 🔧 使用传入的reviewData或默认模拟数据，并使用 buildReviewCardV2 创建交互式卡片
         const mockReview = reviewData || {
           reviewId: 'test_review_' + Date.now(),
+          id: 'test_review_' + Date.now(),
           appId: '1077776989', // 潮汐应用的真实ID
+          app_name: '潮汐 for iOS',
           rating: 5,
           title: '优秀的专注应用！',
           body: '潮汐真的是一个非常棒的专注应用！界面设计简洁美观，各种自然声音很舒缓，帮助我在工作和学习时保持专注。特别喜欢番茄钟功能，让我的时间管理更加高效。强烈推荐给需要提高专注力的朋友们！',
+          author: '专注达人小张',
           reviewerNickname: '专注达人小张',
+          created_date: '2025/8/30',
           createdDate: new Date(),
-          isEdited: false,
+          version: '1.0.0',
+          country: 'CN',
           territoryCode: 'CN',
+          isEdited: false,
           responseBody: null,
           responseDate: null,
           isPushed: false,
@@ -589,7 +595,9 @@ router.post('/test/card-v2', async (req: Request, res: Response) => {
           updatedAt: new Date()
         };
         
-        cardContent = RichTextFactory.createReviewMessage(mockReview);
+        // 使用 buildReviewCardV2 创建带按钮的交互式卡片
+        const { buildReviewCardV2 } = require('../utils/feishu-card-v2-builder');
+        cardContent = buildReviewCardV2(mockReview, 'initial');
         break;
       
       default:
