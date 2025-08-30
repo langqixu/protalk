@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { IDatabaseManager, AppReview } from '../../types';
 import { EnvConfig } from '../../types';
 import logger from '../../utils/logger';
+import { ReviewDTO } from '../../types/review';
 
 interface SupabaseConfig {
   supabase: EnvConfig['supabase'];
@@ -360,6 +361,67 @@ export class SupabaseManager implements IDatabaseManager {
   }
 
   // transformToDatabase方法已移除，统一使用transformAppReviewToDatabase
+
+  /**
+   * Retrieves a single review by its ID.
+   */
+  async getReviewById(reviewId: string): Promise<any> { // Should return ReviewDTO | null
+    const { data, error } = await this.client
+      .from('app_reviews')
+      .select('*')
+      .eq('review_id', reviewId)
+      .single();
+
+    if (error) {
+      logger.error('Error fetching review by ID', { reviewId, error });
+      return null;
+    }
+    return data;
+  }
+
+  /**
+   * Updates the developer response for a given review.
+   */
+  async updateReviewReply(reviewId: string, replyContent: string): Promise<void> {
+    const { error } = await this.client
+      .from('app_reviews')
+      .update({ developer_response: replyContent, last_modified: new Date().toISOString() })
+      .eq('review_id', reviewId);
+
+    if (error) {
+      logger.error('Error updating review reply', { reviewId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Saves a complete review object to the database.
+   * This is primarily used for seeding test data.
+   */
+  async saveReview(review: ReviewDTO): Promise<void> {
+    const { error } = await this.client
+      .from('app_reviews')
+      .insert([
+        {
+          review_id: review.id,
+          app_id: review.appId,
+          // ... map all other ReviewDTO fields to the table columns ...
+          title: review.title,
+          body: review.body,
+          rating: review.rating,
+          author_name: review.author,
+          created_at: review.createdAt,
+          version: review.version,
+          country_code: review.countryCode,
+        }
+      ]);
+
+    if (error) {
+      logger.error('Error saving review to Supabase', { error });
+      throw error;
+    }
+    logger.info('Successfully saved review to Supabase', { reviewId: review.id });
+  }
 
 
 }
