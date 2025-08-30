@@ -108,10 +108,15 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             tag: 'button',
             text: { tag: 'plain_text', content: '回复' },
             type: 'primary',
-            value: {
-              action: CardState.REPLYING,
-              review_id: review.id,
-            },
+            behaviors: [
+              {
+                type: 'callback',
+                value: {
+                  action: CardState.REPLYING,
+                  review_id: review.id,
+                },
+              },
+            ],
           },
         ],
       };
@@ -134,19 +139,29 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                 text: { tag: 'plain_text', content: '提交' },
                 type: 'primary',
                 form_action_type: 'submit',
-                value: {
-                  action: CardState.REPLIED,
-                  review_id: review.id,
-                },
+                behaviors: [
+                  {
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
+                  },
+                ],
               },
               {
                 tag: 'button',
                 text: { tag: 'plain_text', content: '取消' },
                 type: 'default',
-                value: {
-                  action: CardState.NO_REPLY,
-                  review_id: review.id,
-                },
+                behaviors: [
+                  {
+                    type: 'callback',
+                    value: {
+                      action: CardState.NO_REPLY,
+                      review_id: review.id,
+                    },
+                  },
+                ],
               },
             ],
           },
@@ -169,10 +184,15 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             tag: 'button',
             text: { tag: 'plain_text', content: '编辑回复' },
             type: 'default',
-            value: {
-                action: CardState.EDITING_REPLY,
-                review_id: review.id,
-            }
+            behaviors: [
+              {
+                type: 'callback',
+                value: {
+                  action: CardState.EDITING_REPLY,
+                  review_id: review.id,
+                },
+              },
+            ],
         }
       };
 
@@ -195,19 +215,29 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                 text: { tag: 'plain_text', content: '更新' },
                 type: 'primary',
                 form_action_type: 'submit',
-                value: {
-                  action: CardState.REPLIED,
-                  review_id: review.id,
-                },
+                behaviors: [
+                  {
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
+                  },
+                ],
               },
               {
                 tag: 'button',
                 text: { tag: 'plain_text', content: '取消' },
                 type: 'default',
-                value: {
-                  action: CardState.REPLIED,
-                  review_id: review.id,
-                },
+                behaviors: [
+                  {
+                    type: 'callback',
+                    value: {
+                      action: CardState.REPLIED,
+                      review_id: review.id,
+                    },
+                  },
+                ],
               },
             ],
           },
