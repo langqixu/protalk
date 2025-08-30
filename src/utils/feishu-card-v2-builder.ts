@@ -83,28 +83,28 @@ function buildReviewInfo(review: ReviewDTO): any {
         is_short: true,
         text: {
           tag: 'lark_md',
-          content: `👤 **用户:** ${review.author}`,
+          content: `<font color="grey">👤 **用户:** ${review.author}</font>`,
         },
       },
       {
         is_short: true,
         text: {
           tag: 'lark_md',
-          content: `🌍 **地区:** ${review.countryCode}`,
+          content: `<font color="grey">🌍 **地区:** ${review.countryCode}</font>`,
         },
       },
       {
         is_short: true,
         text: {
           tag: 'lark_md',
-          content: `📱 **版本:** ${review.version}`,
+          content: `<font color="grey">📱 **版本:** ${review.version}</font>`,
         },
       },
       {
         is_short: true,
         text: {
           tag: 'lark_md',
-          content: `📅 **时间:** ${formattedDate}`,
+          content: `<font color="grey">📅 **时间:** ${formattedDate}</font>`,
         },
       },
     ],
@@ -149,10 +149,11 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             input_type: 'multiline_text',
             rows: 3,
             required: true,
+            width: 'fill',
           },
           {
             tag: 'column_set',
-            flex_mode: 'none',
+            horizontal_align: 'left',
             columns: [
               {
                 tag: 'column',
@@ -164,12 +165,16 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'primary',
                     name: 'submit_button',
                     action_type: 'form_submit',
+                    width: 'default',
                     value: {
                       action: CardState.REPLIED,
                       review_id: review.id,
                     },
                   },
                 ],
+                vertical_spacing: '8px',
+                horizontal_align: 'left',
+                vertical_align: 'top',
               },
               {
                 tag: 'column',
@@ -181,12 +186,16 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'default',
                     name: 'cancel_button',
                     action_type: 'request',
+                    width: 'default',
                     value: {
                       action: CardState.NO_REPLY,
                       review_id: review.id,
                     },
                   },
                 ],
+                vertical_spacing: '8px',
+                horizontal_align: 'left',
+                vertical_align: 'top',
               },
             ],
           },
@@ -234,10 +243,11 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
             rows: 3,
             default_value: review.developerResponse?.body || '',
             required: true,
+            width: 'fill',
           },
           {
             tag: 'column_set',
-            flex_mode: 'none',
+            horizontal_align: 'left',
             columns: [
               {
                 tag: 'column',
@@ -249,12 +259,16 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'primary',
                     name: 'update_button',
                     action_type: 'form_submit',
+                    width: 'default',
                     value: {
                       action: CardState.REPLIED,
                       review_id: review.id,
                     },
                   },
                 ],
+                vertical_spacing: '8px',
+                horizontal_align: 'left',
+                vertical_align: 'top',
               },
               {
                 tag: 'column',
@@ -266,12 +280,16 @@ function buildActionElements(review: ReviewDTO, state: CardState): any {
                     type: 'default',
                     name: 'cancel_edit_button',
                     action_type: 'request',
+                    width: 'default',
                     value: {
                       action: CardState.REPLIED,
                       review_id: review.id,
                     },
                   },
                 ],
+                vertical_spacing: '8px',
+                horizontal_align: 'left',
+                vertical_align: 'top',
               },
             ],
           },
