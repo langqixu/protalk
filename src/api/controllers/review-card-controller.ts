@@ -6,8 +6,14 @@
 import { CardState, ReviewDTO } from '../../types/review';
 import { buildReviewCardV2 } from '../../utils/feishu-card-v2-builder';
 import logger from '../../utils/logger';
-// NOTE: We will need to inject FeishuService and a DatabaseService later.
-// For now, we'll use mock data and functions.
+import { FeishuServiceV1 } from '../../services/FeishuServiceV1';
+
+// This is a temporary solution for dependency injection.
+// In a more complex app, we would use a proper DI framework.
+let feishuService: FeishuServiceV1;
+export function setControllerFeishuService(service: FeishuServiceV1) {
+    feishuService = service;
+}
 
 // Mock database
 const MOCK_DB: { [key: string]: ReviewDTO } = {};
@@ -20,10 +26,14 @@ async function saveReview(review: ReviewDTO): Promise<void> {
   MOCK_DB[review.id] = review;
 }
 
-// Mock Feishu Service
-async function updateCard(messageId: string, _card: any) {
-  logger.info(`Updating card ${messageId} with new content.`);
-  // In a real scenario, this would make an API call to Feishu.
+// Use the real Feishu service
+async function updateCard(messageId: string, card: any) {
+    if (!feishuService) {
+        logger.error('FeishuService not initialized in controller!');
+        return;
+    }
+    logger.info(`Calling feishuService.updateCardMessage for ${messageId}`);
+    await feishuService.updateCardMessage(messageId, card);
 }
 
 export async function handleCardAction(action: any, messageId: string) {

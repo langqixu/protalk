@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import logger from '../utils/logger';
 import { FeishuServiceV1 } from '../services/FeishuServiceV1';
-import { handleCardAction } from './controllers/review-card-controller';
+import { handleCardAction, setControllerFeishuService } from './controllers/review-card-controller';
 import { CardState, ReviewDTO } from '../types/review';
 import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
 
@@ -10,6 +10,7 @@ let feishuService: FeishuServiceV1 | null = null;
 
 export function setFeishuService(service: FeishuServiceV1) {
   feishuService = service;
+  setControllerFeishuService(service); // Inject service into controller
 }
 
 // Main event handler for Feishu callbacks
