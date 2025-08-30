@@ -6,7 +6,7 @@ import { SupabaseManager } from './modules/storage/SupabaseManager';
 import { FeishuServiceV1 } from './services/FeishuServiceV1';
 import { ReviewSyncService } from './services/ReviewSyncService';
 import { SmartReviewSyncService } from './services/SmartReviewSyncService';
-import feishuRoutes, { setFeishuService } from './api/feishu-routes';
+import feishuRoutes, { setFeishuService, setSupabaseManager } from './api/feishu-routes';
 import { setControllerSupabaseService } from './api/controllers/review-card-controller';
 import logger from './utils/logger';
 // IPusher类型已通过FeishuServiceV1直接使用
@@ -31,6 +31,7 @@ async function main() {
       supabase: envConfig.supabase
     });
     setControllerSupabaseService(db);
+    setSupabaseManager(db); // 新增：注入到飞书路由中
     
     // 初始化飞书v1服务
     let feishuService: FeishuServiceV1 | null = null;

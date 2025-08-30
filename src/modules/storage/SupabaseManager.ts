@@ -363,33 +363,55 @@ export class SupabaseManager implements IDatabaseManager {
   // transformToDatabase方法已移除，统一使用transformAppReviewToDatabase
 
   /**
-   * Retrieves a single review by its ID.
+   * Retrieves a single review by its ID and converts to ReviewDTO format.
    */
-  async getReviewById(reviewId: string): Promise<any> { // Should return ReviewDTO | null
-    const { data, error } = await this.client
-      .from('app_reviews')
-      .select('*')
-      .eq('review_id', reviewId)
-      .single();
+  async getReviewById(reviewId: string): Promise<ReviewDTO | null> {
+    try {
+      const { data, error } = await this.client
+        .from('app_reviews')
+        .select('*')
+        .eq('review_id', reviewId)
+        .single();
 
-    if (error) {
-      logger.error('Error fetching review by ID', { reviewId, error });
+      if (error) {
+        logger.error('Error fetching review by ID', { reviewId, error });
+        return null;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      // Convert database record to ReviewDTO format
+      return this.transformDatabaseToReviewDTO(data);
+    } catch (error) {
+      logger.error('Error in getReviewById', { reviewId, error });
       return null;
     }
-    return data;
   }
 
   /**
    * Updates the developer response for a given review.
    */
   async updateReviewReply(reviewId: string, replyContent: string): Promise<void> {
-    const { error } = await this.client
-      .from('app_reviews')
-      .update({ developer_response: replyContent, last_modified: new Date().toISOString() })
-      .eq('review_id', reviewId);
+    try {
+      const { error } = await this.client
+        .from('app_reviews')
+        .update({ 
+          response_body: replyContent, 
+          response_date: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('review_id', reviewId);
 
-    if (error) {
-      logger.error('Error updating review reply', { reviewId, error });
+      if (error) {
+        logger.error('Error updating review reply', { reviewId, error });
+        throw error;
+      }
+      
+      logger.info('Successfully updated review reply', { reviewId, replyLength: replyContent.length });
+    } catch (error) {
+      logger.error('Error in updateReviewReply', { reviewId, error });
       throw error;
     }
   }
@@ -399,29 +421,109 @@ export class SupabaseManager implements IDatabaseManager {
    * This is primarily used for seeding test data.
    */
   async saveReview(review: ReviewDTO): Promise<void> {
-    const { error } = await this.client
-      .from('app_reviews')
-      .insert([
-        {
-          review_id: review.id,
-          app_id: review.appId,
-          // ... map all other ReviewDTO fields to the table columns ...
-          title: review.title,
-          body: review.body,
-          rating: review.rating,
-          author_name: review.author,
-          created_at: review.createdAt,
-          version: review.version,
-          country_code: review.countryCode,
-        }
-      ]);
+    try {
+      const { error } = await this.client
+        .from('app_reviews')
+        .upsert([
+          {
+            review_id: review.id,
+            app_id: review.appId,
+            title: review.title,
+            body: review.body,
+            rating: review.rating,
+            nickname: review.author,
+            review_date: review.createdAt,
+            response_body: review.developerResponse?.body || null,
+            response_date: review.developerResponse?.lastModified || null,
+            is_edited: false,
+            created_at: review.createdAt,
+            updated_at: new Date().toISOString()
+          }
+        ]);
 
-    if (error) {
-      logger.error('Error saving review to Supabase', { error });
+      if (error) {
+        logger.error('Error saving review to Supabase', { error });
+        throw error;
+      }
+      logger.info('Successfully saved review to Supabase', { reviewId: review.id });
+    } catch (error) {
+      logger.error('Error in saveReview', { reviewId: review.id, error });
       throw error;
     }
-    logger.info('Successfully saved review to Supabase', { reviewId: review.id });
   }
 
+  /**
+   * Maps a Feishu message ID to a review ID for future lookups.
+   */
+  async mapMessageToReview(messageId: string, reviewId: string): Promise<void> {
+    try {
+      const { error } = await this.client
+        .from('comment_mappings')
+        .upsert([
+          {
+            message_id: messageId,
+            review_id: reviewId,
+            app_id: 'unknown', // 可以后续优化
+            store_type: 'appstore',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]);
 
+      if (error) {
+        logger.error('Error mapping message to review', { messageId, reviewId, error });
+        throw error;
+      }
+      
+      logger.debug('Successfully mapped message to review', { messageId, reviewId });
+    } catch (error) {
+      logger.error('Error in mapMessageToReview', { messageId, reviewId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Gets the review ID associated with a given Feishu message ID.
+   */
+  async getReviewIdByMessageId(messageId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.client
+        .from('comment_mappings')
+        .select('review_id')
+        .eq('message_id', messageId)
+        .single();
+
+      if (error) {
+        logger.warn('No mapping found for message ID', { messageId });
+        return null;
+      }
+
+      return data?.review_id || null;
+    } catch (error) {
+      logger.error('Error in getReviewIdByMessageId', { messageId, error });
+      return null;
+    }
+  }
+
+  /**
+   * Transforms database record to ReviewDTO format.
+   */
+  private transformDatabaseToReviewDTO(dbRecord: any): ReviewDTO {
+    return {
+      id: dbRecord.review_id,
+      appId: dbRecord.app_id,
+      appName: 'App Name', // 需要从app配置或其他地方获取
+      rating: dbRecord.rating,
+      title: dbRecord.title || '',
+      body: dbRecord.body || '',
+      author: dbRecord.nickname || '',
+      createdAt: dbRecord.review_date || dbRecord.created_at,
+      version: dbRecord.version || '1.0.0', // 需要添加到数据库schema
+      countryCode: dbRecord.country_code || 'CN', // 需要添加到数据库schema
+      developerResponse: dbRecord.response_body ? {
+        body: dbRecord.response_body,
+        lastModified: dbRecord.response_date || dbRecord.updated_at
+      } : undefined
+    };
+  }
 }

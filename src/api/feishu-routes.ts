@@ -4,12 +4,13 @@ import { FeishuServiceV1 } from '../services/FeishuServiceV1';
 import { handleCardAction, setControllerDataManager } from './controllers/review-card-controller';
 import { CardState, ReviewDTO } from '../types/review';
 import { buildReviewCardV2 } from '../utils/feishu-card-v2-builder';
-// import { SupabaseManager } from '../modules/storage/SupabaseManager';
+import { SupabaseManager } from '../modules/storage/SupabaseManager';
 import { MockDataManager } from '../modules/storage/MockDataManager';
 
 const router = Router();
 let feishuService: FeishuServiceV1 | null = null;
 let mockDataManager: MockDataManager | null = null;
+let supabaseManager: SupabaseManager | null = null;
 
 // 检查是否启用模拟模式
 const isMockMode = process.env['MOCK_MODE'] === 'true' || process.env['NODE_ENV'] === 'test';
@@ -25,10 +26,20 @@ export function setFeishuService(service: FeishuServiceV1) {
     setControllerDataManager(mockDataManager);
   } else {
     logger.info('使用真实数据库模式');
-    // 这里应该初始化 SupabaseManager，但为了测试先使用模拟数据
-    mockDataManager = new MockDataManager();
-    setControllerDataManager(mockDataManager);
+    if (supabaseManager) {
+      logger.info('使用已配置的SupabaseManager');
+      setControllerDataManager(supabaseManager);
+    } else {
+      logger.warn('SupabaseManager未配置，回退到模拟数据模式');
+      mockDataManager = new MockDataManager();
+      setControllerDataManager(mockDataManager);
+    }
   }
+}
+
+export function setSupabaseManager(manager: SupabaseManager) {
+  supabaseManager = manager;
+  logger.info('SupabaseManager已设置');
 }
 
 // Main event handler for Feishu callbacks
