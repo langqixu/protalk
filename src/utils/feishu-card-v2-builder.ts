@@ -52,58 +52,49 @@ function buildReviewInfo(review: ReviewDTO): any {
   const formattedDate = new Date(review.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
   return {
-    tag: 'column_set',
-    flex_mode: 'none',
-    columns: [
+    tag: 'div',
+    fields: [
       {
-        tag: 'column',
-        width: 'weighted',
-        weight: 1,
-        elements: [
-          {
-            tag: 'div',
-            text: {
-              tag: 'lark_md',
-              content: `${stars} (${review.rating}/5)\n\n**${review.title}**\n${review.body}`,
-            },
-          },
-          { tag: 'hr' },
-          {
-            tag: 'column_set',
-            flex_mode: 'bisect',
-            horizontal_spacing: 'large',
-            columns: [
-              {
-                tag: 'column',
-                width: 'weighted',
-                weight: 1,
-                elements: [
-                  {
-                    tag: 'div',
-                    text: {
-                      tag: 'lark_md',
-                      content: `👤 **用户:** ${review.author}\n📱 **版本:** ${review.version}`,
-                    },
-                  },
-                ],
-              },
-              {
-                tag: 'column',
-                width: 'weighted',
-                weight: 1,
-                elements: [
-                  {
-                    tag: 'div',
-                    text: {
-                      tag: 'lark_md',
-                      content: `🇨🇳 **地区:** ${review.countryCode}\n📅 **时间:** ${formattedDate}`,
-                    },
-                  },
-                ],
-              },
-            ],
-          },
-        ],
+        is_short: false,
+        text: {
+          tag: 'lark_md',
+          content: `${stars} (${review.rating}/5)`,
+        },
+      },
+      {
+        is_short: false,
+        text: {
+          tag: 'lark_md',
+          content: `**${review.title}**\n${review.body}`,
+        },
+      },
+      {
+        is_short: true,
+        text: {
+          tag: 'lark_md',
+          content: `👤 **用户:** ${review.author}`,
+        },
+      },
+      {
+        is_short: true,
+        text: {
+          tag: 'lark_md',
+          content: `🇨🇳 **地区:** ${review.countryCode}`,
+        },
+      },
+      {
+        is_short: true,
+        text: {
+          tag: 'lark_md',
+          content: `📱 **版本:** ${review.version}`,
+        },
+      },
+      {
+        is_short: true,
+        text: {
+          tag: 'lark_md',
+          content: `📅 **时间:** ${formattedDate}`,
+        },
       },
     ],
   };
